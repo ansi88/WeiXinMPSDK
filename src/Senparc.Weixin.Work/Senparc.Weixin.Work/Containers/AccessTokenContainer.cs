@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,13 +19,13 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：AccessTokenContainer.cs
     文件功能描述：通用接口AccessToken容器，用于自动管理AccessToken，如果过期会重新获取
 
 
-    创建标识：Senparc - 20150313
+    创建标识：Senparc - 20140128
 
     修改标识：Senparc - 20150313
     修改描述：整理接口
@@ -39,31 +39,31 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20160318
     修改描述：v3.3.4 使用FlushCache.CreateInstance使注册过程立即生效
-    
+
     修改标识：Senparc - 20160717
     修改描述：v3.3.8 添加注册过程中的Name参数
-    
+
     修改标识：Senparc - 20160803
     修改描述：v4.1.2 使用ApiUtility.GetExpireTime()方法处理过期
- 
+
     修改标识：Senparc - 20160804
     修改描述：v4.1.3 增加TryGetTokenAsync，GetTokenAsync，GetTokenResultAsync的异步方法
-    
+
     修改标识：Senparc - 20160813
     修改描述：v4.1.5 添加TryReRegister()方法，处理分布式缓存重启（丢失）的情况
 
     修改标识：Senparc - 20160813
     修改描述：v4.1.6 完善GetToken()方法
-    
+
     修改标识：Senparc - 20160813
     修改描述：v4.1.8 修改命名空间为Senparc.Weixin.Work.Containers
 
     修改标识：Senparc - 20180614
     修改描述：CO2NET v0.1.0 ContainerBag 取消属性变动通知机制，使用手动更新缓存
-    
+
     修改标识：Senparc - 20180707
     修改描述：v15.0.9 Container 的 Register() 的微信参数自动添加到 Config.SenparcWeixinSetting.Items 下
-    
+
     修改标识：Senparc - 20181226
     修改描述：v3.3.2 修改 DateTime 为 DateTimeOffset
 
@@ -78,7 +78,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20190822
     修改描述：v3.5.11 完善同步方法的 AccessTokenContainer.Register() 对异步方法的调用，避免可能的线程锁死问题
-    
+
     修改标识：Senparc - 20190826
     修改描述：v3.5.13 优化 Register() 方法
 
@@ -88,11 +88,21 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     修改标识：Senparc - 20210719
     修改描述：v3.11.2 AccessTokenContainer 支持分布式同步锁
 
+    修改标识：Senparc - 20220916
+    修改描述：v3.15.8.1 RegisterAsync() 方法添加 ConfigureAwait(false) 标记
+
+    修改标识：Senparc - 20260718
+    修改描述：v3.31.1 修复同步注册竞态，并在分布式锁内重新读取 AccessToken 状态
+
+    修改标识：Senparc - 20260718
+    修改描述：v3.32.0 新增外部凭据提供器注册入口并保护重注册凭据
+
 ----------------------------------------------------------------*/
 
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using Senparc.CO2NET.CacheUtility;
 using Senparc.Weixin.Containers;
 using Senparc.Weixin.Entities;
@@ -144,7 +154,7 @@ namespace Senparc.Weixin.Work.Containers
     public class AccessTokenContainer : BaseContainer<AccessTokenBag>
     {
         private const string UN_REGISTER_ALERT = "此CorpId尚未注册，AccessTokenContainer.Register完成注册（全局执行一次即可）！";
-       private const string LockResourceName = "Work.AccessTokenContainer";
+        private const string LockResourceName = "Work.AccessTokenContainer";
 
         /// <summary>
         /// 注册应用凭证信息，此操作只是注册，不会马上获取Token，并将清空之前的Token。
@@ -153,10 +163,23 @@ namespace Senparc.Weixin.Work.Containers
         /// <param name="corpId">corpId</param>
         /// <param name="corpSecret">corpSecret</param>
         /// 此接口无异步方法
-        public static string BuildingKey(string corpId, string corpSecret)
+        public static string BuildingKey(string corpId, string corpSecret, bool isAgentConfig=false)
         {
-            return string.Format("{0}@{1}", corpId, corpSecret);
+            return $"{corpId}@{corpSecret}{(isAgentConfig?$"@@AgentConfig" :null)}";
         }
+
+        /// <summary>
+        /// 注册应用凭证信息，此操作只是注册，不会马上获取Token，并将清空之前的Token。
+        /// 执行此注册过程，会连带注册ProviderTokenContainer。
+        /// </summary>
+        /// <param name="corpId">corpId</param>
+        /// <param name="corpSecret">corpSecret</param>
+        /// 此接口无异步方法
+        public static string BuildingKey(ISenparcWeixinSettingForWork setting)
+        {
+            return BuildingKey(setting.WeixinCorpId, setting.WeixinCorpSecret);
+        }
+
 
         /// <summary>
         /// 根据Key获取corpId和corpSecret
@@ -195,12 +218,8 @@ namespace Senparc.Weixin.Work.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         public static void Register(string corpId, string corpSecret, string name = null)
         {
-            var task = RegisterAsync(corpId, corpSecret, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(corpId, corpSecret, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(corpId, corpSecret, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
 
@@ -278,6 +297,7 @@ namespace Senparc.Weixin.Work.Containers
             var accessTokenBag = TryGetItem(appKey);
             using (Cache.BeginCacheLock(LockResourceName, appKey))//同步锁
             {
+                accessTokenBag = TryGetItem(appKey);//获锁后重新读取，避免使用分布式缓存中的旧副本重复刷新
                 if (getNewToken || accessTokenBag.ExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -316,7 +336,7 @@ namespace Senparc.Weixin.Work.Containers
         {
             //记录注册信息，RegisterFunc委托内的过程会在缓存丢失之后自动重试
             var shortKey = BuildingKey(corpId, corpSecret);
-            RegisterFuncCollection[shortKey] = async () =>
+            SetRegistrationCallback(shortKey, async () =>
              {
                  //using (FlushCache.CreateInstance())
                  //{
@@ -331,7 +351,7 @@ namespace Senparc.Weixin.Work.Containers
                  await UpdateAsync(BuildingKey(corpId, corpSecret), bag, null).ConfigureAwait(false);
                  return bag;
                  //}
-             };
+             });
 
             var registerTask = RegisterFuncCollection[shortKey]();
 
@@ -345,7 +365,58 @@ namespace Senparc.Weixin.Work.Containers
 
             var registerProviderTask = ProviderTokenContainer.RegisterAsync(corpId, corpSecret);//连带注册ProviderTokenContainer
 
-            await Task.WhenAll(new[] { registerTask, registerJsApiTask, registerProviderTask });//等待所有任务完成
+            await Task.WhenAll(new[] { registerTask, registerJsApiTask, registerProviderTask }).ConfigureAwait(false);//等待所有任务完成
+        }
+
+        /// <summary>
+        /// 使用稳定 registrationKey 和外部凭据提供器注册企业微信 AccessToken。
+        /// 自动重注册委托不捕获明文 CorpSecret；调用 API 时使用返回的 registrationKey 作为 AppKey。
+        /// </summary>
+        public static async Task RegisterWithCredentialProviderAsync(
+            string registrationKey,
+            string corpId,
+            IWeixinCredentialProvider credentialProvider,
+            string name = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(registrationKey))
+            {
+                throw new ArgumentException("registrationKey 不能为空。", nameof(registrationKey));
+            }
+
+            if (string.IsNullOrWhiteSpace(corpId))
+            {
+                throw new ArgumentException("CorpId 不能为空。", nameof(corpId));
+            }
+
+            if (credentialProvider == null)
+            {
+                throw new ArgumentNullException(nameof(credentialProvider));
+            }
+
+            async Task<AccessTokenBag> RegisterCoreAsync(CancellationToken token)
+            {
+                var secret = await credentialProvider.GetSecretAsync(registrationKey, token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(secret))
+                {
+                    throw new InvalidOperationException("凭据提供器返回了空 CorpSecret。");
+                }
+
+                var bag = new AccessTokenBag
+                {
+                    Name = name,
+                    CorpId = corpId,
+                    CorpSecret = secret,
+                    ExpireTime = DateTimeOffset.MinValue,
+                    AccessTokenResult = new AccessTokenResult()
+                };
+                await UpdateAsync(registrationKey, bag, null).ConfigureAwait(false);
+                return bag;
+            }
+
+            SetRegistrationCallback(registrationKey, () => RegisterCoreAsync(CancellationToken.None));
+            cancellationToken.ThrowIfCancellationRequested();
+            await RegisterCoreAsync(cancellationToken).ConfigureAwait(false);
         }
 
 
@@ -413,6 +484,7 @@ namespace Senparc.Weixin.Work.Containers
             var accessTokenBag = await TryGetItemAsync(appKey).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName, appKey).ConfigureAwait(false))//同步锁
             {
+                accessTokenBag = await TryGetItemAsync(appKey).ConfigureAwait(false);//获锁后重新读取，避免使用分布式缓存中的旧副本重复刷新
                 if (getNewToken || accessTokenBag.ExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取

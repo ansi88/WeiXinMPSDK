@@ -1,11 +1,14 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：GetScheduleJsonResult.cs
     文件功能描述：获取日程接口返回参数
     
     
     创建标识：lishewen - 20191226
+
+    修改标识：Senparc - 20260608
+    修改描述：v3.17.x 增加 get_by_calendar 返回的 sequence 字段
     
 ----------------------------------------------------------------*/
 
@@ -79,6 +82,10 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Schedule.ScheduleJson
         /// 日程状态。0-正常；1-已取消
         /// </summary>
         public int status { get; set; }
+        /// <summary>
+        /// 日程序号（get_by_calendar接口返回）
+        /// </summary>
+        public int? sequence { get; set; }
     }
 
     public class AttendeeResult : Attendee

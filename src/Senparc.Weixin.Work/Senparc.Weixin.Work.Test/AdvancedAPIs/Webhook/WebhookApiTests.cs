@@ -1,25 +1,40 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Senparc.Weixin.Work.AdvancedAPIs.Webhook;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using static System.Net.WebRequestMethods;
+using Senparc.WeixinTests;
+using System.Threading.Tasks;
 
-namespace Senparc.Weixin.Work.Test.vs2017.AdvancedAPIs.Webhook
+namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook.Tests
 {
-    [TestClass]
-    public class WebhookApiTests
+    [TestClass()]
+    public class WebhookApiTests : BaseTest
     {
-        const string key = "[your key]";
-        [TestMethod]
-        public void SendTestTest()
+
+        string key = "<Your Key>";
+
+        [TestMethod()]
+        public async Task SendTextAsyncTest()
         {
             try
             {
-                Work.AdvancedAPIs.Webhook.WebhookApi.SendText(key, "测试消息");
+                var result = await Work.AdvancedAPIs.Webhook.WebhookApi.SendTextAsync(key, "测试消息");
+                Console.WriteLine(result);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine(ex);
                 Assert.Fail();
             }
+        }
+
+        [TestMethod]
+        public async Task Markdown2Test()
+        {
+            var result = await Work.AdvancedAPIs.Webhook.WebhookApi.SendMarkdownV2Async(key, "## MarkdownV2 接口测试消息 \n#### 1. 这是一条测试消息 \n > 这是一条测试消息");
+            Console.WriteLine(result);
         }
     }
 }

@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -40,12 +40,12 @@ namespace Senparc.Weixin.Work.Test.CommonAPIs
             JsApiTicketContainer.Register(base._corpId, base._corpSecret);
 
             //获取Ticket完整结果（包括当前过期秒数）
-            var ticketResult = JsApiTicketContainer.GetTicketResult(base._corpId,base._corpSecret);
+            var ticketResult = JsApiTicketContainer.GetTicketResult(base._corpId, base._corpSecret, false);
             Assert.IsNotNull(ticketResult);
             Console.WriteLine(ticketResult.ticket);
 
             //只获取Ticket字符串
-            var ticket = JsApiTicketContainer.GetTicket(base._corpId, base._corpSecret);
+            var ticket = JsApiTicketContainer.GetTicket(base._corpId, base._corpSecret, false);
             Assert.AreEqual(ticketResult.ticket, ticket);
 
             //getNewTicket
@@ -54,7 +54,7 @@ namespace Senparc.Weixin.Work.Test.CommonAPIs
                 Assert.AreEqual(ticketResult.ticket, ticket);
 
                 ticket = JsApiTicketContainer.TryGetTicket(base._corpId, base._corpSecret, true);
-                Assert.AreEqual(ticketResult.ticket, ticket);//现在微信服务器有Ticket缓存，短时间内一致
+                Assert.AreNotEqual(ticketResult.ticket, ticket);//现在微信服务器有Ticket缓存，短时间内一致（2024年测试，已实现实时刷新）
                 Console.WriteLine(ticketResult.ticket);
             }
 
@@ -74,3 +74,4 @@ namespace Senparc.Weixin.Work.Test.CommonAPIs
 
     }
 }
+

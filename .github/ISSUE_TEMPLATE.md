@@ -35,18 +35,18 @@
 
 - [ ] .net 3.5
 - [ ] .net 4.0
-- [ ] .net 4.5
-- [ ] .net standard 2.0
+- [ ] .net 4.5+
+- [ ] .net standard 2.0 / 2.1
 - [ ] .net core 1.x
 - [ ] .net core 2.x
-- [x] .net core 3.x
+- [ ] .net core 3.x
 - [ ] .net 5.x / 6.x
+- [x] .net 7.0
 
 ##### 开发环境
 
-- [ ] Visual Studio 2015
-- [ ] Visual Studio 2017
-- [x] Visual Studio 2019
+- [ ] Visual Studio 2019
+- [x] Visual Studio 2022
 - [ ] Visual Studio Code
 - [ ] 其他：
 
@@ -67,6 +67,6 @@
 ##### 联系方式
 Email：
 
-（也可将问题地址及联系方式发送到 www.jeffrey.su@gmail.com）
+（也可将问题地址及联系方式发送到 zsu@senparc.com）
 
 > 发布问题后，请保持对 issue 的关注，有时会有需要进一步沟通的信息，很长时间内没有得到答复的 issue 将被关闭。

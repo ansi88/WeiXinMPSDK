@@ -1,4 +1,18 @@
-﻿using Senparc.NeuChar;
+﻿/*----------------------------------------------------------------
+    Copyright (C) 2026 Senparc
+
+    文件名：DefaultWxOpenMessageContext.cs
+    文件功能描述：小程序上下文消息的默认实现
+
+
+    创建标识：Senparc - 20190915
+
+    修改标识：Senparc - 20260724
+    修改描述：v3.28.1 补齐小程序物流、交易、直播、短剧、小说和行业能力接口及事件
+
+----------------------------------------------------------------*/
+
+using Senparc.NeuChar;
 using Senparc.NeuChar.Context;
 using Senparc.NeuChar.Entities;
 using Senparc.NeuChar.Exceptions;
@@ -58,6 +72,81 @@ namespace Senparc.Weixin.WxOpen.MessageContexts
                         case "WXA_NICKNAME_AUDIT": //名称审核结果
                             requestMessage = new RequestMessageEvent_NicknameAudit();
                             break;
+                        case "WXA_ILLEGAL_RECORD": //小程序违规记录事件
+                            requestMessage = new RequestMessageEvent_IllegalRecord();
+                            break;
+                        case "WXA_APPEAL_RECORD": //小程序申诉记录推送
+                            requestMessage = new RequestMessageEvent_AppealRecord();
+                            break;
+                        case "WXA_PRIVACY_APPLY": //隐私权限审核结果推送
+                            requestMessage = new RequestMessageEvent_PrivacyApply();
+                            break;
+                        case "WXA_MEDIA_CHECK"://内容安全回调：wxa_media_check 推送结果
+                            requestMessage = new RequestMessageEvent_MediaCheck();
+                            break;
+                        case "WXA_CATEGORY_AUDIT": //小程序类目审核事件
+                            requestMessage = new RequestMessageEvent_WxaCategoryAudit();
+                            break;
+                        case "ADD_EXPRESS_PATH": //运单轨迹推送事件
+                            requestMessage = new RequestMessageEvent_AddExpressPath();
+                            break;
+                        case "TRADE_MANAGE_ORDER_SETTLEMENT"://订单将要结算或已经结算
+                            requestMessage = new RequestMessageEvent_TradeManageOrderSettlement();
+                            break;
+                        case "TRADE_MANAGE_REMIND_ACCESS_API": //提醒接入发货信息管理服务API
+                            requestMessage = new RequestMessageEvent_TradeManageRemindAccessApi();
+                            break;
+                        case "TRADE_MANAGE_REMIND_SHIPPING"://提醒需要上传发货信息
+                            requestMessage = new RequestMessageEvent_TradeManageRemindShipping();
+                            break;
+                        case "WX_VERIFY_PAY_SUCC": //微信认证支付成功通知
+                            requestMessage = new RequestMessageEvent_WxVerifyPaySucc();
+                            break;
+                        case "WX_VERIFY_DISPATCH": //微信认证派单事件
+                            requestMessage = new RequestMessageEvent_WxVerifyDispatch();
+                            break;
+                        case "USER_INFO_MODIFIED": //用户资料变更
+                            requestMessage = new RequestMessageEvent_UserInfoModified();
+                            break;
+                        case "USER_AUTHORIZATION_REVOKE": //用户撤回
+                            requestMessage = new RequestMessageEvent_UserAuthorizationRevoke();
+                            break;
+                        case "USER_AUTHORIZATION_CANCELLATION": // 用户完成注销
+                            requestMessage = new RequestMessageEvent_UserAuthorizationCancellation();
+                            break;
+                        case "CHARGE_SERVICE_QUOTA_NOTIFY": // 付费管理订单用量告警事件
+                            requestMessage = new RequestMessageEvent_ChargeServiceQuotaNotify();
+                            break;
+                        case "SECVOD_UPLOAD_EVENT": // 短剧媒资上传完成事件
+                            requestMessage = new RequestMessageEvent_SecVodUpload();
+                            break;
+                        case "SECVOD_AUDIT_EVENT": // 短剧剧目审核状态事件
+                            requestMessage = new RequestMessageEvent_SecVodAudit();
+                            break;
+                        case "WXALIVE_FOLLOW_NOTIFY": // 小程序直播长期订阅状态通知
+                            requestMessage = new RequestMessageEvent_WxAliveFollowNotify();
+                            break;
+                        case "WXALIVE_PUSH_MESSAGE_NOTIFY": // 小程序直播长期订阅群发结果通知
+                            requestMessage = new RequestMessageEvent_WxAlivePushMessageNotify();
+                            break;
+                        case "RETAIL_REFUND_NOTIFY": // B2B 门店助手退款结果通知
+                            requestMessage = new RequestMessageEvent_RetailRefundNotify();
+                            break;
+                        case "XPAY_GOODS_DELIVER_NOTIFY": //虚拟支付 道具发货推送
+                            requestMessage = new RequestMessageEvent_XPayGoodsDeliverNotify();
+                            break;
+                        case "XPAY_COIN_PAY_NOTIFY": // 虚拟支付 代币支付推送
+                            requestMessage = new RequestMessageEvent_XPayCoinPayNotify();
+                            break;
+                        case "XPAY_REFUND_NOTIFY": // 虚拟支付 退款推送
+                            requestMessage = new RequestMessageEvent_XPayRefundNotify();
+                            break;
+                        case "XPAY_APPLE_SUBSCRIBE_SIGNING_RESULT_NOTIFY": // 虚拟支付 iOS 会员订阅签约结果推送
+                            requestMessage = new RequestMessageEvent_XPayAppleSubscribeSigningResultNotify();
+                            break;
+                        case "XPAY_SUBSCRIBE_IOS_REFUND_QUERY_NOTIFY": // 虚拟支付 iOS 会员订阅退款推送
+                            requestMessage = new RequestMessageEvent_XPaySubscribeIosRefundQueryNotify();
+                            break;
                         default://其他意外类型（也可以选择抛出异常）
                             requestMessage = new RequestMessageEventBase();
                             break;
@@ -82,7 +171,6 @@ namespace Senparc.Weixin.WxOpen.MessageContexts
                 case ResponseMsgType.Transfer_Customer_Service:
                     responseMessage = new ResponseMessageTransfer_Customer_Service();
                     break;
-
                 case ResponseMsgType.NoResponse:
                     responseMessage = new ResponseMessageNoResponse();
                     break;

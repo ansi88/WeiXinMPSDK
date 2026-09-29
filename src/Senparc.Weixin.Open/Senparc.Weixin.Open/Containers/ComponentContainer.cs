@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,13 +19,13 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：ComponentContainer.cs
     文件功能描述：通用接口ComponentAccessToken容器，用于自动管理ComponentAccessToken，如果过期会重新获取
 
 
-    创建标识：Senparc - 20150430
+    创建标识：Senparc - 20151004
 
     修改标识：Senparc - 20151004
     修改描述：v1.4.1 改名为ComponentContainer.cs，合并多个ComponentApp相关容器
@@ -84,6 +84,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     
     修改标识：Senparc - 20190826
     修改描述：v4.5.10 优化 Register() 方法
+
+    修改标识：Senparc - 20260718
+    修改描述：v4.24.2 修复组件同步注册并为票据刷新增加分布式锁与二次检查
 
 ----------------------------------------------------------------*/
 
@@ -221,12 +224,10 @@ namespace Senparc.Weixin.Open.Containers
             Action<string, string, RefreshAuthorizerTokenResult> authorizerTokenRefreshedFunc,
             string name = null)
         {
-            var task = RegisterAsync(componentAppId, componentAppSecret, getComponentVerifyTicketFunc, getAuthorizerRefreshTokenFunc, authorizerTokenRefreshedFunc, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(componentAppId, componentAppSecret, getComponentVerifyTicketFunc, getAuthorizerRefreshTokenFunc, authorizerTokenRefreshedFunc, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(componentAppId, componentAppSecret, getComponentVerifyTicketFunc,
+                getAuthorizerRefreshTokenFunc, authorizerTokenRefreshedFunc, name)
+                .ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
 
@@ -261,19 +262,23 @@ namespace Senparc.Weixin.Open.Containers
             }
 
             var bag = TryGetItem(componentAppId);
-            var componentVerifyTicket = bag.ComponentVerifyTicket;
-            if (getNewToken || componentVerifyTicket == default(string) || bag.ComponentVerifyTicketExpireTime < SystemTime.Now)
+            using (Cache.BeginCacheLock(LockResourceName + ".TryGetComponentVerifyTicket", componentAppId))
             {
-                if (GetComponentVerifyTicketFunc == null)
+                bag = TryGetItem(componentAppId);//获锁后重新读取并二次检查过期状态
+                var componentVerifyTicket = bag.ComponentVerifyTicket;
+                if (getNewToken || componentVerifyTicket == default(string) || bag.ComponentVerifyTicketExpireTime < SystemTime.Now)
                 {
-                    throw new WeixinOpenException("GetComponentVerifyTicketFunc必须在注册时提供！", bag);
+                    if (GetComponentVerifyTicketFunc == null)
+                    {
+                        throw new WeixinOpenException("GetComponentVerifyTicketFunc必须在注册时提供！", bag);
+                    }
+                    componentVerifyTicket = GetComponentVerifyTicketFunc(componentAppId).ConfigureAwait(false).GetAwaiter().GetResult(); //获取最新的componentVerifyTicket
+                    bag.ComponentVerifyTicket = componentVerifyTicket;
+                    bag.ComponentVerifyTicketExpireTime = ApiUtility.GetExpireTime(COMPONENT_VERIFY_TICKET_UPDATE_MINUTES * 60);
+                    Update(bag, null);//更新到缓存
                 }
-                componentVerifyTicket = GetComponentVerifyTicketFunc(componentAppId).GetAwaiter().GetResult(); //获取最新的componentVerifyTicket
-                bag.ComponentVerifyTicket = componentVerifyTicket;
-                bag.ComponentVerifyTicketExpireTime = ApiUtility.GetExpireTime(COMPONENT_VERIFY_TICKET_UPDATE_MINUTES * 60);
-                Update(bag, null);//更新到缓存
+                return componentVerifyTicket;
             }
-            return componentVerifyTicket;
         }
 
         /// <summary>
@@ -337,6 +342,7 @@ namespace Senparc.Weixin.Open.Containers
             var accessTokenBag = TryGetItem(componentAppId);
             using (Cache.BeginCacheLock(LockResourceName + ".GetComponentAccessTokenResult", componentAppId))//同步锁
             {
+                accessTokenBag = TryGetItem(componentAppId);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || accessTokenBag.ComponentAccessTokenExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -395,6 +401,7 @@ namespace Senparc.Weixin.Open.Containers
             var componentBag = TryGetItem(componentAppId);
             using (Cache.BeginCacheLock(LockResourceName + ".GetPreAuthCodeResult", componentAppId))//同步锁
             {
+                componentBag = TryGetItem(componentAppId);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || componentBag.PreAuthCodeExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -443,6 +450,7 @@ namespace Senparc.Weixin.Open.Containers
             var componentBag = TryGetItem(componentAppId);
             using (Cache.BeginCacheLock(LockResourceName + ".GetQueryAuthResult", componentAppId))//同步锁
             {
+                componentBag = TryGetItem(componentAppId);//获锁后使用最新配置与令牌状态
                 var accessToken = TryGetComponentAccessToken(componentAppId, componentBag.ComponentAppSecret, null, getNewToken);
                 var queryAuthResult = ComponentApi.QueryAuth(accessToken, componentAppId, authorizationCode);
 
@@ -485,7 +493,7 @@ namespace Senparc.Weixin.Open.Containers
                 AuthorizerTokenRefreshedFunc = authorizerTokenRefreshedFunc;
             }
 
-            RegisterFuncCollection[componentAppId] = async () =>
+            SetRegistrationCallback(componentAppId, async () =>
             {
                 //using (FlushCache.CreateInstance())
                 //{
@@ -498,7 +506,7 @@ namespace Senparc.Weixin.Open.Containers
                 await UpdateAsync(componentAppId, bag, null).ConfigureAwait(false);
                 return bag;
                 //}
-            };
+            });
             await RegisterFuncCollection[componentAppId]().ConfigureAwait(false);
 
             if (!name.IsNullOrEmpty())
@@ -539,19 +547,23 @@ namespace Senparc.Weixin.Open.Containers
             }
 
             var bag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);
-            var componentVerifyTicket = bag.ComponentVerifyTicket;
-            if (getNewToken || componentVerifyTicket == default(string) || bag.ComponentVerifyTicketExpireTime < SystemTime.Now)
+            using (await Cache.BeginCacheLockAsync(LockResourceName + ".TryGetComponentVerifyTicket", componentAppId).ConfigureAwait(false))
             {
-                if (GetComponentVerifyTicketFunc == null)
+                bag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
+                var componentVerifyTicket = bag.ComponentVerifyTicket;
+                if (getNewToken || componentVerifyTicket == default(string) || bag.ComponentVerifyTicketExpireTime < SystemTime.Now)
                 {
-                    throw new WeixinOpenException("GetComponentVerifyTicketFunc必须在注册时提供！", bag);
+                    if (GetComponentVerifyTicketFunc == null)
+                    {
+                        throw new WeixinOpenException("GetComponentVerifyTicketFunc必须在注册时提供！", bag);
+                    }
+                    componentVerifyTicket = await GetComponentVerifyTicketFunc(componentAppId).ConfigureAwait(false); //获取最新的componentVerifyTicket
+                    bag.ComponentVerifyTicket = componentVerifyTicket;
+                    bag.ComponentVerifyTicketExpireTime = ApiUtility.GetExpireTime(COMPONENT_VERIFY_TICKET_UPDATE_MINUTES * 60);
+                    await UpdateAsync(bag, null).ConfigureAwait(false);//更新到缓存
                 }
-                componentVerifyTicket = await GetComponentVerifyTicketFunc(componentAppId).ConfigureAwait(false); //获取最新的componentVerifyTicket
-                bag.ComponentVerifyTicket = componentVerifyTicket;
-                bag.ComponentVerifyTicketExpireTime = ApiUtility.GetExpireTime(COMPONENT_VERIFY_TICKET_UPDATE_MINUTES * 60);
-                await UpdateAsync(bag, null).ConfigureAwait(false);//更新到缓存
+                return componentVerifyTicket;
             }
-            return componentVerifyTicket;
         }
 
         /// <summary>
@@ -617,6 +629,7 @@ namespace Senparc.Weixin.Open.Containers
             var accessTokenBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetComponentAccessTokenResult", componentAppId).ConfigureAwait(false))//同步锁
             {
+                accessTokenBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || accessTokenBag.ComponentAccessTokenExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -676,6 +689,7 @@ namespace Senparc.Weixin.Open.Containers
             var componentBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetPreAuthCodeResult", componentAppId).ConfigureAwait(false))//同步锁
             {
+                componentBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || componentBag.PreAuthCodeExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -722,6 +736,7 @@ namespace Senparc.Weixin.Open.Containers
             var componentBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetQueryAuthResult", componentAppId).ConfigureAwait(false))//同步锁
             {
+                componentBag = await TryGetItemAsync(componentAppId).ConfigureAwait(false);//获锁后使用最新配置与令牌状态
                 var accessToken = await TryGetComponentAccessTokenAsync(componentAppId, componentBag.ComponentAppSecret, null, getNewToken).ConfigureAwait(false);
                 var queryAuthResult = await ComponentApi.QueryAuthAsync(accessToken, componentAppId, authorizationCode).ConfigureAwait(false);
 

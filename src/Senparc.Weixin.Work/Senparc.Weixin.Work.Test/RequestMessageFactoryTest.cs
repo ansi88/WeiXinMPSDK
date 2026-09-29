@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -17,6 +17,19 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
 ----------------------------------------------------------------*/
 #endregion Apache License Version 2.0
+
+/*----------------------------------------------------------------
+    Copyright (C) 2026 Senparc
+
+    文件名：RequestMessageFactoryTest.cs
+    文件功能描述：
+
+    创建标识：Senparc - 20141006
+
+    修改标识：Senparc - 20260523
+    修改描述：补充更新日志，完善文件头修改记录
+
+----------------------------------------------------------------*/
 
 using System;
 using System.Collections.Generic;
@@ -269,6 +282,15 @@ namespace Senparc.Weixin.Work.Test
 </BatchJob>
 </xml>";
 
+        private string xmlEvent_Kf_Msg_Or_Event = @"<xml>
+   <ToUserName><![CDATA[ww12345678910]]></ToUserName>
+   <CreateTime>1348831860</CreateTime>
+   <MsgType><![CDATA[event]]></MsgType>
+   <Event><![CDATA[kf_msg_or_event]]></Event>
+   <Token><![CDATA[ENCApHxnGDNAVNY4AaSJKj4Tb5mwsEMzxhFmHVGcra996NR]]></Token>
+   <OpenKfId><![CDATA[wkxxxxxxx]]></OpenKfId>
+</xml>";
+
         [TestMethod]
         public void GetRequestEntityTest()
         {
@@ -467,6 +489,18 @@ namespace Senparc.Weixin.Work.Test
                 Assert.AreEqual("ok", result.BatchJob.ErrMsg);
                 Assert.AreEqual(0, result.BatchJob.ErrCode);
             }
+
+            {
+                //Event_Kf_Msg_Or_Event
+                var doc = XDocument.Parse(xmlEvent_Kf_Msg_Or_Event);
+                var result = RequestMessageFactory.GetRequestEntity(new MessageContexts.DefaultWorkMessageContext(), doc) as RequestMessageEvent_Kf_Msg_Or_Event;
+                Assert.IsNotNull(result);
+                Assert.AreEqual("ww12345678910", result.ToUserName);
+                Assert.AreEqual("ENCApHxnGDNAVNY4AaSJKj4Tb5mwsEMzxhFmHVGcra996NR", result.Token);
+                Assert.AreEqual("wkxxxxxxx", result.OpenKfId);
+                Assert.AreEqual(Event.KF_MSG_OR_EVENT, result.Event);
+            }
         }
     }
 }
+

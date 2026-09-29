@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：TemplateApi.cs
     文件功能描述：公众号订阅通知
@@ -172,7 +172,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs.NewTmpl
         /// <param name="templateId">所需下发的订阅模板id</param>
         /// <param name="data">模板内容，格式形如 { "key1": { "value": any }, "key2": { "value": any } }</param>
         /// <param name="page">跳转网页时填写</param>
-        /// <param name="miniProgram">	跳转小程序时填写</param>
+        /// <param name="miniProgram">跳转小程序时填写</param>
         /// <param name="timeOut"></param>
         /// <returns></returns>
         public static WxJsonResult BizSend(string accessTokenOrAppId, string toUser, string templateId,
@@ -205,7 +205,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs.NewTmpl
         /// <param name="templateId">所需下发的订阅模板id</param>
         /// <param name="data">模板内容，格式形如 { "key1": { "value": any }, "key2": { "value": any } }</param>
         /// <param name="page">跳转网页时填写</param>
-        /// <param name="miniProgram">	跳转小程序时填写</param>
+        /// <param name="miniProgram">跳转小程序时填写</param>
         /// <param name="timeOut"></param>
         /// <returns></returns>
         public static async Task<WxJsonResult> BizSendAsync(string accessTokenOrAppId, string toUser, string templateId,

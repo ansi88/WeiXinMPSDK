@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -25,7 +25,7 @@ Copyright(C) 2018 Senparc
     文件功能描述：通用接口JsApiTicket容器，用于OPEN第三方JSSDK自动管理JsApiTicket，如果过期会重新获取
 
 
-    创建标识：Senparc - 20150211
+    创建标识：Senparc - 20151004
 
     修改标识：renny - 20150921
     修改描述：整理接口
@@ -92,6 +92,9 @@ Copyright(C) 2018 Senparc
 
     修改标识：ccccccmd - 20200609
     修改描述：v4.7.502.2 解决授权信息出现重复记录的问题
+
+    修改标识：Senparc - 20260718
+    修改描述：v4.24.2 修复授权方同步注册及凭据锁内二次检查
 
 ----------------------------------------------------------------*/
 
@@ -185,12 +188,8 @@ namespace Senparc.Weixin.Open.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         private static void Register(string componentAppId, string authorizerAppId, string name = null)
         {
-            var task = RegisterAsync(componentAppId, authorizerAppId, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(componentAppId, authorizerAppId, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(componentAppId, authorizerAppId, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -226,6 +225,7 @@ namespace Senparc.Weixin.Open.Containers
             var authorizerBag = TryGetItem(authorizerAppid);
             using (Cache.BeginCacheLock(LockResourceName + ".GetAuthorizationInfo", authorizerAppid))//同步锁
             {
+                authorizerBag = TryGetItem(authorizerAppid);//获锁后重新读取并二次检查过期状态
                 //更新Authorization
                 if (getNewTicket || authorizerBag.AuthorizationInfoExpireTime <= SystemTime.Now)
                 {
@@ -287,6 +287,7 @@ namespace Senparc.Weixin.Open.Containers
             var authorizerBag = TryGetItem(authorizerAppid);
             using (Cache.BeginCacheLock(LockResourceName + ".GetAuthorizerInfoResult", authorizerAppid))//同步锁
             {
+                authorizerBag = TryGetItem(authorizerAppid);//获锁后重新读取最新授权方信息
                 //更新AuthorizerInfo
                 if (getNewTicket || authorizerBag.AuthorizerInfo.user_name == null)
                 {
@@ -456,6 +457,7 @@ namespace Senparc.Weixin.Open.Containers
             var accessTicketBag = TryGetItem(authorizerAppid);
             using (Cache.BeginCacheLock(LockResourceName + ".GetJsApiTicketResult", authorizerAppid))//同步锁
             {
+                accessTicketBag = TryGetItem(authorizerAppid);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || accessTicketBag.JsApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -492,7 +494,7 @@ namespace Senparc.Weixin.Open.Containers
                 throw new WeixinOpenException(string.Format("注册AuthorizerContainer之前，必须先注册对应的ComponentContainer！ComponentAppId：{0},AuthorizerAppId:{1}", componentAppId, authorizerAppId));
             }
 
-            RegisterFuncCollection[authorizerAppId] = async () =>
+            SetRegistrationCallback(authorizerAppId, async () =>
              {
                  //using (FlushCache.CreateInstance())
                  //{
@@ -515,7 +517,7 @@ namespace Senparc.Weixin.Open.Containers
                  await UpdateAsync(authorizerAppId, bag, null).ConfigureAwait(false);
                  return bag;
                  //}
-             };
+             });
             await RegisterFuncCollection[authorizerAppId]().ConfigureAwait(false);
 
             //TODO：这里也可以考虑尝试进行授权（会影响速度）
@@ -553,6 +555,7 @@ namespace Senparc.Weixin.Open.Containers
             var authorizerBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetAuthorizationInfo", authorizerAppid).ConfigureAwait(false))//同步锁
             {
+                authorizerBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 //更新Authorization
                 if (getNewTicket || authorizerBag.AuthorizationInfoExpireTime <= SystemTime.Now)
                 {
@@ -616,6 +619,7 @@ namespace Senparc.Weixin.Open.Containers
             var authorizerBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetAuthorizerInfoResult", authorizerAppid).ConfigureAwait(false))//同步锁
             {
+                authorizerBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);//获锁后重新读取最新授权方信息
 
                 //更新AuthorizerInfokd
                 if (getNewTicket || authorizerBag.AuthorizerInfo.user_name == null)
@@ -783,6 +787,7 @@ namespace Senparc.Weixin.Open.Containers
             var accessTicketBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName + ".GetJsApiTicketResult", authorizerAppid).ConfigureAwait(false))//同步锁
             {
+                accessTicketBag = await TryGetItemAsync(authorizerAppid).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || accessTicketBag.JsApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取

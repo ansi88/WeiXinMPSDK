@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -80,7 +80,12 @@ namespace Senparc.Weixin.MP.Test.AdvancedAPIs
         }
 
         [TestMethod]
-        public VideoMediaIdResult GetVideoMediaIdResultTest()
+        public void GetVideoMediaIdResultTest()
+        {
+            Assert.IsNotNull(GetVideoMediaIdResult());
+        }
+
+        private VideoMediaIdResult GetVideoMediaIdResult()
         {
             var videoFilePath = ServerUtility.ContentRootMapPath("video-test.mp4");
             Console.WriteLine("Video Path:" + videoFilePath);
@@ -102,7 +107,7 @@ namespace Senparc.Weixin.MP.Test.AdvancedAPIs
         [TestMethod]
         public void SendGroupMessagePreviewTest()
         {
-            var videoMediaIdResult = GetVideoMediaIdResultTest();
+            var videoMediaIdResult = GetVideoMediaIdResult();
             var groupSendResult = GroupMessageApi.SendGroupMessagePreview(_appId, GroupMessageType.video, videoMediaIdResult.media_id, _testOpenId);
 
             Console.WriteLine("AppId:" + _appId);

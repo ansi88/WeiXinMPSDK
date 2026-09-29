@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,14 +19,14 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：RedPackApi.cs
     文件功能描述：普通红包发送和红包查询Api（暂缺裂变红包发送）
     
     
     创建标识：Yu XiaoChou - 20160107
-        
+
     修改标识：Senparc - 20161024
     修改描述：v14.3.102 重新整理红包发送方法
 
@@ -41,19 +41,25 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20170810
     修改描述：v14.6.10 添加接口：普通红包发送(服务商）
-    
+
     修改标识：Senparc - 20170925
     修改描述：添加新规定提示：红包超过2000元必须提供scene_id参数：
               https://pay.weixin.qq.com/wiki/doc/api/tools/cash_coupon.php?chapter=13_4&index=3
-                  
+
     修改标识：Senparc - 20171208
     修改描述：v14.8.10 修复红包接口 RedPackApi.SendNormalRedPack() 在.NET 4.6 下的XML解析问题
 
     修改标识：Senparc - 20190121
     修改描述：v16.6.9 修复：裂变红包 url 及参数不正确
-    
+
     修改标识：RongjieAAA - 20191122
     修改描述：增加小程序红包发送API
+
+    修改标识：Senparc - 20260523
+    修改描述：补充更新日志，完善文件头修改记录
+
+    修改标识：Senparc - 20260718
+    修改描述：v1.18.3 通过资源安全 HTTP 辅助类执行红包请求
 
 ----------------------------------------------------------------*/
 
@@ -69,7 +75,7 @@ using System.Xml.Linq;
 using Senparc.Weixin.Exceptions;
 using Senparc.Weixin.TenPay;
 
-#if !NET451
+#if !NET462
 using System.Net.Http;
 #endif
 
@@ -84,6 +90,28 @@ namespace Senparc.Weixin.TenPay.V3
         {
             //return string.Format("{0}{1}{2}", mchId, SystemTime.Now.ToString("yyyyMMdd"), TenPayV3Util.BuildRandomStr(10));
             return string.Format("{0}{1}", SystemTime.Now.ToString("yyyyMMddHHmmssfff"), TenPayV3Util.BuildRandomStr(3));
+        }
+
+        /// <summary>
+        /// 加载X509证书 - .NET 9.0兼容版本
+        /// </summary>
+        /// <param name="certPath">证书路径</param>
+        /// <param name="password">证书密码</param>
+        /// <returns></returns>
+        private static X509Certificate2 LoadCertificate(string certPath, string password)
+        {
+            // .NET 9.0 兼容性改进：使用更灵活的证书加载标志
+            X509KeyStorageFlags storageFlags;
+            #if NET9_0_OR_GREATER
+            storageFlags = X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet;
+            if (System.OperatingSystem.IsWindows())
+            {
+                storageFlags |= X509KeyStorageFlags.MachineKeySet;
+            }
+            #else
+            storageFlags = X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet;
+            #endif
+            return new X509Certificate2(certPath, password, storageFlags);
         }
 
         #region 错误码
@@ -194,50 +222,17 @@ PROCESSING	请求已受理，请稍后使用原单号查询发放结果	二十�
             string data = packageReqHandler.ParseXML();
 
             //发红包接口地址
-            string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/sendredpack";
+            string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/sendredpack";
             //本地或者服务器的证书位置（证书在微信支付申请成功发来的通知邮件中）
             string cert = tenPayCertPath;
             //私钥（在安装证书时设置）
             string password = mchId;
 
-            //调用证书
-            X509Certificate2 cer = new X509Certificate2(cert, password, X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet);
-
-            XmlDocument doc = new Senparc.CO2NET.ExtensionEntities.XmlDocument_XxeFixed();
-
-#if NET451
-            ServicePointManager.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback(CheckValidationResult);
-            //X509Certificate cer = new X509Certificate(cert, password);
-            #region 发起post请求
-            HttpWebRequest webrequest = (HttpWebRequest)HttpWebRequest.Create(url);
-            webrequest.ClientCertificates.Add(cer);
-            webrequest.Method = "post";
-
-
-            byte[] postdatabyte = Encoding.UTF8.GetBytes(data);
-            webrequest.ContentLength = postdatabyte.Length;
-            Stream stream = webrequest.GetRequestStream();
-            stream.Write(postdatabyte, 0, postdatabyte.Length);
-            stream.Close();
-
-            HttpWebResponse httpWebResponse = (HttpWebResponse)webrequest.GetResponse();
-            StreamReader streamReader = new StreamReader(httpWebResponse.GetResponseStream());
-            string response = streamReader.ReadToEnd();
-            #endregion
-            doc.LoadXml(response);
-#else
-            #region 发起post请求
-            HttpClientHandler handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(cer);
-
-            HttpClient client = new HttpClient(handler);
-            HttpContent hc = new StringContent(data);
-            var request = client.PostAsync(url, hc).Result;
-            var response = request.Content.ReadAsStreamAsync().Result;
-            #endregion
-            doc.Load(response);
-
-#endif
+            XmlDocument doc;
+            using (var cer = LoadCertificate(cert, password))
+            {
+                doc = RedPackHttpUtility.PostXml(url, data, cer);
+            }
 
             //XDocument xDoc = XDocument.Load(responseContent);
 
@@ -421,50 +416,18 @@ PROCESSING	请求已受理，请稍后使用原单号查询发放结果	二十�
             string data = packageReqHandler.ParseXML();
 
             //发红包接口地址
-            //string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/sendredpack";
-            string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/sendgroupredpack";
+            //string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/sendredpack";
+            string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/sendgroupredpack";
             //本地或者服务器的证书位置（证书在微信支付申请成功发来的通知邮件中）
             string cert = tenPayCertPath;
             //私钥（在安装证书时设置）
             string password = mchId;
 
-            //调用证书
-            X509Certificate2 cer = new X509Certificate2(cert, password, X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet);
-
-            XmlDocument doc = new Senparc.CO2NET.ExtensionEntities.XmlDocument_XxeFixed();
-
-            #region 发起post请求，载入到doc中
-
-#if NET451
-            ServicePointManager.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback(CheckValidationResult);
-            //X509Certificate cer = new X509Certificate(cert, password);
-
-            HttpWebRequest webrequest = (HttpWebRequest)HttpWebRequest.Create(url);
-            webrequest.ClientCertificates.Add(cer);
-            webrequest.Method = "post";
-
-
-            byte[] postdatabyte = Encoding.UTF8.GetBytes(data);
-            webrequest.ContentLength = postdatabyte.Length;
-            Stream stream = webrequest.GetRequestStream();
-            stream.Write(postdatabyte, 0, postdatabyte.Length);
-            stream.Close();
-
-            HttpWebResponse httpWebResponse = (HttpWebResponse)webrequest.GetResponse();
-            StreamReader streamReader = new StreamReader(httpWebResponse.GetResponseStream());
-            string response = streamReader.ReadToEnd();
-            doc.LoadXml(response);
-#else
-            HttpClientHandler handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(cer);
-
-            HttpClient client = new HttpClient(handler);
-            HttpContent hc = new StringContent(data);
-            var request = client.PostAsync(url, hc).Result;
-            var response = request.Content.ReadAsStreamAsync().Result;
-            doc.Load(response);
-#endif
-            #endregion
+            XmlDocument doc;
+            using (var cer = LoadCertificate(cert, password))
+            {
+                doc = RedPackHttpUtility.PostXml(url, data, cer);
+            }
 
 
             //XDocument xDoc = XDocument.Load(responseContent);
@@ -594,49 +557,17 @@ PROCESSING	请求已受理，请稍后使用原单号查询发放结果	二十�
             string data = packageReqHandler.ParseXML();
 
             //发红包接口地址
-            string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/gethbinfo";
+            string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/gethbinfo";
             //本地或者服务器的证书位置（证书在微信支付申请成功发来的通知邮件中）
             string cert = tenPayCertPath;
             //私钥（在安装证书时设置）
             string password = mchId;
 
-            //调用证书
-            //X509Certificate cer = new X509Certificate(cert, password);
-            X509Certificate2 cer = new X509Certificate2(cert, password, X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet);
-
-            XmlDocument doc = new Senparc.CO2NET.ExtensionEntities.XmlDocument_XxeFixed();
-            #region 发起post请求，载入到doc中
-
-#if NET451
-            ServicePointManager.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback(CheckValidationResult);
-
-            HttpWebRequest webrequest = (HttpWebRequest)HttpWebRequest.Create(url);
-            webrequest.ClientCertificates.Add(cer);
-            webrequest.Method = "post";
-
-
-            byte[] postdatabyte = Encoding.UTF8.GetBytes(data);
-            webrequest.ContentLength = postdatabyte.Length;
-            Stream stream = webrequest.GetRequestStream();
-            stream.Write(postdatabyte, 0, postdatabyte.Length);
-            stream.Close();
-
-            HttpWebResponse httpWebResponse = (HttpWebResponse)webrequest.GetResponse();
-            StreamReader streamReader = new StreamReader(httpWebResponse.GetResponseStream());
-            string response = streamReader.ReadToEnd();
-            doc.LoadXml(response);
-#else
-            HttpClientHandler handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(cer);
-
-            HttpClient client = new HttpClient(handler);
-            HttpContent hc = new StringContent(data);
-            var request = client.PostAsync(url, hc).Result;
-            var response = request.Content.ReadAsStreamAsync().Result;
-            doc.Load(response);
-
-#endif
-            #endregion
+            XmlDocument doc;
+            using (var cer = LoadCertificate(cert, password))
+            {
+                doc = RedPackHttpUtility.PostXml(url, data, cer);
+            }
 
 
 
@@ -822,50 +753,17 @@ PROCESSING	请求已受理，请稍后使用原单号查询发放结果	二十�
             string data = packageReqHandler.ParseXML();
 
             //发红包接口地址
-            string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/sendminiprogramhb";
+            string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/sendminiprogramhb";
             //本地或者服务器的证书位置（证书在微信支付申请成功发来的通知邮件中）
             string cert = tenPayCertPath;
             //私钥（在安装证书时设置）
             string password = mchId;
 
-            //调用证书
-            X509Certificate2 cer = new X509Certificate2(cert, password, X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet);
-
-            XmlDocument doc = new Senparc.CO2NET.ExtensionEntities.XmlDocument_XxeFixed();
-
-#if NET451
-            ServicePointManager.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback(CheckValidationResult);
-            //X509Certificate cer = new X509Certificate(cert, password);
-            #region 发起post请求
-            HttpWebRequest webrequest = (HttpWebRequest)HttpWebRequest.Create(url);
-            webrequest.ClientCertificates.Add(cer);
-            webrequest.Method = "post";
-
-
-            byte[] postdatabyte = Encoding.UTF8.GetBytes(data);
-            webrequest.ContentLength = postdatabyte.Length;
-            Stream stream = webrequest.GetRequestStream();
-            stream.Write(postdatabyte, 0, postdatabyte.Length);
-            stream.Close();
-
-            HttpWebResponse httpWebResponse = (HttpWebResponse)webrequest.GetResponse();
-            StreamReader streamReader = new StreamReader(httpWebResponse.GetResponseStream());
-            string response = streamReader.ReadToEnd();
-            #endregion
-            doc.LoadXml(response);
-#else
-            #region 发起post请求
-            HttpClientHandler handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(cer);
-
-            HttpClient client = new HttpClient(handler);
-            HttpContent hc = new StringContent(data);
-            var request = client.PostAsync(url, hc).Result;
-            var response = request.Content.ReadAsStreamAsync().Result;
-            #endregion
-            doc.Load(response);
-
-#endif
+            XmlDocument doc;
+            using (var cer = LoadCertificate(cert, password))
+            {
+                doc = RedPackHttpUtility.PostXml(url, data, cer);
+            }
 
             //XDocument xDoc = XDocument.Load(responseContent);
 
@@ -967,3 +865,4 @@ PROCESSING	请求已受理，请稍后使用原单号查询发放结果	二十�
 
     }
 }
+

@@ -1,11 +1,11 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：RequestMessageFactory.cs
     文件功能描述：获取XDocument转换后的IRequestMessageBase实例
     
     
-    创建标识：Senparc - 20150313
+    创建标识：Senparc - 20130113
     
     修改标识：Senparc - 20150313
     修改描述：整理接口
@@ -19,9 +19,20 @@
     修改标识：gokeiyou - 20201013
     修改描述：v3.7.604 添加外部联系人管理 > 客户管理相关接口
 
-
     修改标识：Senparc - 20210324
     修改描述：v3.8.202 解决且有微信消息时间返回为 null 的问题
+
+    修改标识：Senparc - 20230914
+    修改描述：v3.16.4 企业微信三方代开发处理事件: 修复 Async 方法循环调用的 Bug
+
+    修改标识：Senparc - 20231026
+    修改描述：v3.17.0 成员对外联系 > 客户消息通知处理
+    
+    修改标识：IcedMango - 20240229
+    修改描述：添加: 企业微信会话存档-产生会话回调事件（MSGAUDIT_NOTIFY）
+
+    修改标识：Senparc - 20260726
+    修改描述：v3.32.1 接入小程序对外收款支付与退款通知识别；接入设备数据授权变更通知识别；接入硬件设备特征变更通知识别
 
 ----------------------------------------------------------------*/
 
@@ -35,8 +46,6 @@ using Senparc.Weixin.Work.Entities.Request.Event;
 using Senparc.NeuChar;
 using Senparc.NeuChar.Helpers;
 using Senparc.NeuChar.Context;
-using Senparc.NeuChar.Entities;
-using Senparc.CO2NET;
 
 namespace Senparc.Weixin.Work
 {
@@ -54,16 +63,51 @@ namespace Senparc.Weixin.Work
             RequestMsgType msgType;
             ThirdPartyInfo infoType;
 
+            var paymentEventType = doc.Root.Element("event_type")?.Value;
+            var isPaymentTransaction = string.Equals(paymentEventType, "TRANSACTION.SUCCESS",
+                StringComparison.OrdinalIgnoreCase);
+            var isPaymentRefund = paymentEventType != null
+                && paymentEventType.StartsWith("REFUND.", StringComparison.OrdinalIgnoreCase);
+
             //区分普通消息与第三方应用授权推送消息，MsgType有值说明是普通消息，反之则是第三方应用授权推送消息
-            if (doc.Root.Element("MsgType") != null)
+            if ((isPaymentTransaction || isPaymentRefund) && doc.Root.Element("resource") != null)
+            {
+                // 小程序对外收款通知的解密后外层 XML 不包含传统 MsgType/Event 节点。
+                // resource 内的业务数据还需要使用相同 EncodingAESKey 进行 AES-GCM 解密。
+                requestMessage = isPaymentTransaction
+                    ? new RequestMessageEvent_MiniProgramPay_Transaction()
+                    : new RequestMessageEvent_MiniProgramPay_Refund();
+                EntityHelper.FillEntityWithXml(requestMessage, doc);
+
+                var resourceElement = doc.Root.Element("resource");
+                ((RequestMessageEvent_MiniProgramPayBase)requestMessage).resource =
+                    new MiniProgramPayNotificationResource
+                    {
+                        algorithm = resourceElement.Element("algorithm")?.Value,
+                        ciphertext = resourceElement.Element("ciphertext")?.Value,
+                        associated_data = resourceElement.Element("associated_data")?.Value,
+                        nonce = resourceElement.Element("nonce")?.Value
+                    };
+            }
+            else if (doc.Root.Element("MsgType") != null)
             {
                 //常规推送信息
                 try
                 {
+                    //获取消息类型
                     msgType = MsgTypeHelper.GetRequestMsgType(doc);
 
+                    //自动获取对应类型的 RequestMessage
                     requestMessage = messageContext.GetRequestEntityMappingResult(msgType, doc) as WorkRequestMessageBase;
 
+                    ////特殊对象处理（不使用底层 EntityHelper）
+                    //if (requestMessage is RequestMessageEvent_SysApprovalChange)
+                    //{
+                    //    var requestXml = doc.Root.ToString();
+                    //    XmlUtility.Deserialize<RequestMessageEvent_SysApprovalChange>(requestXml);
+                    //}
+
+                    //将 XML 内容填充到 requestMessage 中
                     EntityHelper.FillEntityWithXml(requestMessage, doc);
                 }
                 catch (ArgumentException ex)
@@ -94,6 +138,15 @@ namespace Senparc.Weixin.Work
                         case ThirdPartyInfo.CHANGE_CONTACT://通讯录变更通知
                             requestMessage = new RequestMessageInfo_Change_Contact();
                             break;
+                        case ThirdPartyInfo.RESET_PERMANENT_CODE:
+                            requestMessage = new RequestMessageInfo_Reset_Permanent_Code();
+                            break;
+                        case ThirdPartyInfo.DEVICE_DATA_AUTH_CHANGE:
+                            requestMessage = new RequestMessageInfo_Device_Data_Auth_Change();
+                            break;
+                        case ThirdPartyInfo.DEVICE_FEATURE_CHANGE:
+                            requestMessage = new RequestMessageInfo_Device_Feature_Change();
+                            break;
                         case ThirdPartyInfo.CHANGE_EXTERNAL_CONTACT:
                             switch (doc.Root.Element("ChangeType").Value.ToUpper())
                             {
@@ -112,8 +165,23 @@ namespace Senparc.Weixin.Work
                                 case "DEL_FOLLOW_USER":
                                     requestMessage = new RequestMessageEvent_Change_ExternalContact_Del_FollowUser();
                                     break;
+                                case "TRANSFER_FAIL":
+                                    requestMessage = new RequestMessageEvent_Change_ExternalContact_Transfer_Fail();
+                                    break;
                                 case "MSG_AUDIT_APPROVED":
                                     requestMessage = new RequestMessageEvent_Change_ExternalContact_MsgAudit();
+                                    break;
+                                case "MSGAUDIT_NOTIFY":
+                                    requestMessage = new RequestMessageEvent_MsgAuditNotify();
+                                    break;
+                                case "CREATE":
+                                    requestMessage = new RequestMessageEvent_Change_ExternalContact_Create();
+                                    break;
+                                case "UPDATE":
+                                    requestMessage = new RequestMessageEvent_Change_ExternalContact_Update();
+                                    break;
+                                case "DISMISS":
+                                    requestMessage = new RequestMessageEvent_Change_ExternalContact_Dismiss();
                                     break;
                                 default:
                                     requestMessage = new RequestMessageEvent_Change_ExternalContact_Base();
@@ -127,12 +195,12 @@ namespace Senparc.Weixin.Work
                 }
                 catch (ArgumentException ex)
                 {
-                    throw new WeixinException(string.Format("RequestMessage转换出错！可能是MsgType和InfoType都不存在！，XML：{0}", doc.ToString()), ex);
+                    throw new WeixinException(string.Format("RequestMessage转换异常！InfoType类型存在的情况下无法处理！，XML：{0}", doc.ToString()), ex);
                 }
             }
             else
             {
-                throw new WeixinException(string.Format("RequestMessage转换出错！可能是MsgType和InfoType都不存在！，XML：{0}", doc.ToString()));
+                throw new WeixinException(string.Format("RequestMessage转换出错！MsgType和InfoType都不存在！，XML：{0}", doc.ToString()));
             }
 
             return requestMessage;

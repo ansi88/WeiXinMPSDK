@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,13 +19,13 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：JsApiTicketContainer.cs
     文件功能描述：通用接口JsApiTicket容器，用于自动管理JsApiTicket，如果过期会重新获取
 
 
-    创建标识：Senparc - 20160206
+    创建标识：Senparc - 20150114
 
     修改标识：Senparc - 20160206
     修改描述：将public object Lock更改为internal object Lock
@@ -44,7 +44,6 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
  
     修改标识：Senparc - 20160804
     修改描述：v14.2.4 增加TryGetJsApiTicketAsync，GetJsApiTicketAsync，GetJsApiTicketResultAsync的异步方法
-
 
     修改标识：Senparc - 20160808
     修改描述：v14.3.0 删除 ItemCollection 属性，直接使用ContainerBag加入到缓存
@@ -75,6 +74,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20190826
     修改描述：v16.7.16 优化 Register() 方法
+
+    修改标识：Senparc - 20260718
+    修改描述：v16.24.4 修复同步注册竞态，并在分布式锁内重新读取 JS-SDK 票据状态
 
 ----------------------------------------------------------------*/
 
@@ -135,12 +137,8 @@ namespace Senparc.Weixin.MP.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         public static void Register(string appId, string appSecret, string name = null)
         {
-            var task = RegisterAsync(appId, appSecret, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(appId, appSecret, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(appId, appSecret, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
 
@@ -187,6 +185,7 @@ namespace Senparc.Weixin.MP.Containers
             var jsApiTicketBag = TryGetItem(appId);
             using (Cache.BeginCacheLock(LockResourceName, appId))//同步锁
             {
+                jsApiTicketBag = TryGetItem(appId);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || jsApiTicketBag.JsApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -214,7 +213,7 @@ namespace Senparc.Weixin.MP.Containers
         public static async Task RegisterAsync(string appId, string appSecret, string name = null)
         {
             //记录注册信息，RegisterFunc委托内的过程会在缓存丢失之后自动重试
-            RegisterFuncCollection[appId] = async () =>
+            SetRegistrationCallback(appId, async () =>
             {
                 //using (FlushCache.CreateInstance())
                 //{
@@ -229,7 +228,7 @@ namespace Senparc.Weixin.MP.Containers
                 await UpdateAsync(appId, bag, null).ConfigureAwait(false);
                 return bag;
                 //}
-            };
+            });
 
             await RegisterFuncCollection[appId]().ConfigureAwait(false);
 
@@ -286,6 +285,7 @@ namespace Senparc.Weixin.MP.Containers
             var jsApiTicketBag = await TryGetItemAsync(appId).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName, appId).ConfigureAwait(false))//同步锁
             {
+                jsApiTicketBag = await TryGetItemAsync(appId).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || jsApiTicketBag.JsApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取

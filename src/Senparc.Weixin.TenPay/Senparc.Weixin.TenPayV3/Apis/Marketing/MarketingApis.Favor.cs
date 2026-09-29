@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,22 +19,31 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：MarketingApis.Favor.cs
     文件功能描述：微信支付V3营销工具接口
     
     
-    创建标识：Senparc - 20210821
-    
+    创建标识：Senparc - 20210920
+
+    修改标识：Senparc - 20260718
+    修改描述：v2.4.1 释放营销账单下载响应，避免连接资源泄漏
+
+    修改标识：Senparc - 20260718
+    修改描述：v2.5.0 支持营销明细流式下载、增量校验与取消传播
+
 ----------------------------------------------------------------*/
 
 using Senparc.CO2NET.Helpers;
 using Senparc.CO2NET.Trace;
+using Senparc.Weixin.TenPayV3.Apis.Entities;
 using Senparc.Weixin.TenPayV3.Apis.Marketing;
 using Senparc.Weixin.TenPayV3.Entities;
+using Senparc.Weixin.TenPayV3.Helpers;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Senparc.Weixin.TenPayV3.Apis
@@ -74,7 +83,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
                 throw new TenpayApiRequestException($"{nameof(data.coupon_use_rule.fixed_normal_coupon.coupon_amount)} 必须小于等于 {nameof(data.coupon_use_rule.fixed_normal_coupon.transaction_minimum)}！");
             }
 
-            var url = ReurnPayApiUrl("https://api.mch.weixin.qq.com/{0}v3/marketing/favor/coupon-stocks");
+            var url = BasePayApis.GetPayApiUrl(Senparc.Weixin.Config.TenPayV3Host + "/{0}v3/marketing/favor/coupon-stocks");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<CreateStockReturnJson>(url, data, timeOut);
         }
@@ -90,7 +99,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<StartStockReturnJson> StartStockAsync(string stock_id, StartStockRequsetData data, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/start");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/start");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<StartStockReturnJson>(url, data, timeOut);
         }
@@ -106,7 +115,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<DistributeStockReturnJson> DistributeStockAsync(string openid, DistributeStockRequsetData data, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/users/{openid}/coupons");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/users/{openid}/coupons");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<DistributeStockReturnJson>(url, data, timeOut);
         }
@@ -123,7 +132,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         public async Task<PauseStockReturnJson> PauseStockAsync(string stock_id, string stock_creator_mchid, int timeOut = Config.TIME_OUT)
         {
 
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/pause");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/pause");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<PauseStockReturnJson>(url, new { stock_creator_mchid = stock_creator_mchid }, timeOut);
         }
@@ -140,7 +149,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         public async Task<RestartStockReturnJson> RestartStockAsync(string stock_id, string stock_creator_mchid, int timeOut = Config.TIME_OUT)
         {
 
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/restart");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/restart");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<RestartStockReturnJson>(url, new { stock_creator_mchid = stock_creator_mchid }, timeOut);
         }
@@ -160,7 +169,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<QueryStocksReturnJson> QueryStocksAsync(uint offset, uint limit, string stock_creator_mchid, TenpayDateTime create_start_time = null, TenpayDateTime create_end_time = null, string status = null, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
             if (create_start_time is not null)
             {
                 url += $"&create_start_time={create_start_time}";
@@ -189,7 +198,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<StockReturnJson> QueryStockAsync(string stock_id, string stock_creator_mchid, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}?stock_creator_mchid={stock_creator_mchid}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}?stock_creator_mchid={stock_creator_mchid}");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<StockReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
         }
@@ -207,7 +216,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<QueryMerchantsReturnJson> QueryMerchantsStockAsync(uint offset, uint limit, string stock_creator_mchid, string stock_id, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/merchants?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/merchants?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<QueryMerchantsReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
         }
@@ -225,7 +234,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<QueryItemsReturnJson> QueryItemsAsync(uint offset, uint limit, string stock_creator_mchid, string stock_id, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/items?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/items?offset={offset}&limit={limit}&stock_creator_mchid={stock_creator_mchid}");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<QueryItemsReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
         }
@@ -249,7 +258,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         public async Task<QueryCouponsReturnJson> QueryCouponsAsync(string openid, string appid, string stock_id, string status, string creator_mchid, string sender_mchid, string available_mchid, uint offset = 0, uint limit = 20, int timeOut = Config.TIME_OUT)
         {
 
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/users/{openid}/coupons?appid={appid}&offset={offset}&limit={limit}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/users/{openid}/coupons?appid={appid}&offset={offset}&limit={limit}");
 
             if (stock_id is not null)
             {
@@ -289,7 +298,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         public async Task<QueryCouponReturnJson> QueryCouponAsync(string coupon_id, string appid, string openid, int timeOut = Config.TIME_OUT)
         {
 
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/users/{openid}/coupons/{coupon_id}?appid={appid}");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/users/{openid}/coupons/{coupon_id}?appid={appid}");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<QueryCouponReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
         }
@@ -303,35 +312,41 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <param name="fileStream">fileStream</param>
         /// <param name="timeOut">超时时间，单位为ms</param>
         /// <returns></returns>
-        public async Task<DownloadStockUseFlowReturnJson> DownloadStockUseFlowAsync(string stock_id, Stream fileStream, int timeOut = Config.TIME_OUT)
+        public Task<DownloadStockUseFlowReturnJson> DownloadStockUseFlowAsync(string stock_id, Stream fileStream, int timeOut = Config.TIME_OUT)
+        {
+            return DownloadStockUseFlowAsync(stock_id, fileStream, CancellationToken.None, timeOut);
+        }
+
+        /// <summary>
+        /// 下载批次核销明细，并支持取消。
+        /// </summary>
+        public async Task<DownloadStockUseFlowReturnJson> DownloadStockUseFlowAsync(string stock_id, Stream fileStream, CancellationToken cancellationToken, int timeOut = Config.TIME_OUT)
         {
             try
             {
-                var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/use-flow");
+                var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/use-flow");
 
                 TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
-                var result = await tenPayApiRequest.RequestAsync<DownloadStockUseFlowReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
+                var result = await tenPayApiRequest.RequestAsync<DownloadStockUseFlowReturnJson>(url, null, cancellationToken, timeOut, ApiRequestMethod.GET).ConfigureAwait(false);
 
                 //下载交易账单
                 if (result.VerifySignSuccess == true)
                 {
-                    var responseMessage = await tenPayApiRequest.GetHttpResponseMessageAsync(result.url, null, requestMethod: ApiRequestMethod.GET);
-                    fileStream.Seek(0, SeekOrigin.Begin);
-                    await responseMessage.Content.CopyToAsync(fileStream);
-                    fileStream.Seek(0, SeekOrigin.Begin);
-
-                    //校验文件Hash
-                    var fileHash = FileHelper.GetFileHash(fileStream, result.hash_type, false);
-                    Console.WriteLine("fileHash: " + fileHash);
-                    var fileVerify = fileHash.Equals(result.hash_value, StringComparison.OrdinalIgnoreCase);
+                    var fileVerify = await TenPayDownloadHelper.DownloadAndVerifyAsync(
+                        tenPayApiRequest, result.url, fileStream, result.hash_type, result.hash_value,
+                        timeOut, cancellationToken).ConfigureAwait(false);
                     if (!fileVerify)
                     {
                         result.VerifySignSuccess = false;
                         result.ResultCode.Additional += "请求成功，但文件校验错误。请查看日志！";
-                        SenparcTrace.BaseExceptionLog(new TenpayApiRequestException($"TradeBillQueryAsync 下载文件成功，但校验失败，正确值：{result.hash_value}，实际值：{fileHash}（忽略大小写）"));
+                        SenparcTrace.BaseExceptionLog(new TenpayApiRequestException($"DownloadStockUseFlowAsync 下载文件成功，但流式校验失败，正确值：{result.hash_value}"));
                     }
                 }
                 return result;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -349,35 +364,41 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <param name="fileStream">fileStream</param>
         /// <param name="timeOut">超时时间，单位为ms</param>
         /// <returns></returns>
-        public async Task<DownloadStockRefundFlowReturnJson> DownloadStockRefundFlowAsync(string stock_id, Stream fileStream, int timeOut = Config.TIME_OUT)
+        public Task<DownloadStockRefundFlowReturnJson> DownloadStockRefundFlowAsync(string stock_id, Stream fileStream, int timeOut = Config.TIME_OUT)
+        {
+            return DownloadStockRefundFlowAsync(stock_id, fileStream, CancellationToken.None, timeOut);
+        }
+
+        /// <summary>
+        /// 下载批次退款明细，并支持取消。
+        /// </summary>
+        public async Task<DownloadStockRefundFlowReturnJson> DownloadStockRefundFlowAsync(string stock_id, Stream fileStream, CancellationToken cancellationToken, int timeOut = Config.TIME_OUT)
         {
             try
             {
-                var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/stocks/{stock_id}/refund-flow");
+                var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/stocks/{stock_id}/refund-flow");
 
                 TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
-                var result = await tenPayApiRequest.RequestAsync<DownloadStockRefundFlowReturnJson>(url, null, timeOut, ApiRequestMethod.GET);
+                var result = await tenPayApiRequest.RequestAsync<DownloadStockRefundFlowReturnJson>(url, null, cancellationToken, timeOut, ApiRequestMethod.GET).ConfigureAwait(false);
 
                 //下载交易账单
                 if (result.VerifySignSuccess == true)
                 {
-                    var responseMessage = await tenPayApiRequest.GetHttpResponseMessageAsync(result.url, null, requestMethod: ApiRequestMethod.GET);
-                    fileStream.Seek(0, SeekOrigin.Begin);
-                    await responseMessage.Content.CopyToAsync(fileStream);
-                    fileStream.Seek(0, SeekOrigin.Begin);
-
-                    //校验文件Hash
-                    var fileHash = FileHelper.GetFileHash(fileStream, result.hash_type, false);
-                    Console.WriteLine("fileHash: " + fileHash);
-                    var fileVerify = fileHash.Equals(result.hash_value, StringComparison.OrdinalIgnoreCase);
+                    var fileVerify = await TenPayDownloadHelper.DownloadAndVerifyAsync(
+                        tenPayApiRequest, result.url, fileStream, result.hash_type, result.hash_value,
+                        timeOut, cancellationToken).ConfigureAwait(false);
                     if (!fileVerify)
                     {
                         result.VerifySignSuccess = false;
                         result.ResultCode.Additional += "请求成功，但文件校验错误。请查看日志！";
-                        SenparcTrace.BaseExceptionLog(new TenpayApiRequestException($"TradeBillQueryAsync 下载文件成功，但校验失败，正确值：{result.hash_value}，实际值：{fileHash}（忽略大小写）"));
+                        SenparcTrace.BaseExceptionLog(new TenpayApiRequestException($"DownloadStockRefundFlowAsync 下载文件成功，但流式校验失败，正确值：{result.hash_value}"));
                     }
                 }
                 return result;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -396,7 +417,7 @@ namespace Senparc.Weixin.TenPayV3.Apis
         /// <returns></returns>
         public async Task<SetNotifyUrlReturnJson> SetNotifyUrlAsync(SetNotifyUrlRequsetData data, int timeOut = Config.TIME_OUT)
         {
-            var url = ReurnPayApiUrl($"https://api.mch.weixin.qq.com/{{0}}v3/marketing/favor/callbacks");
+            var url = BasePayApis.GetPayApiUrl($"{Senparc.Weixin.Config.TenPayV3Host}/{{0}}v3/marketing/favor/callbacks");
             TenPayApiRequest tenPayApiRequest = new(_tenpayV3Setting);
             return await tenPayApiRequest.RequestAsync<SetNotifyUrlReturnJson>(url, data, timeOut);
         }

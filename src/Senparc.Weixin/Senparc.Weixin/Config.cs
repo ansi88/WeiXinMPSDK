@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：Config.cs
     文件功能描述：全局设置
@@ -47,6 +47,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20200918
     修改描述：v6.7.600 停用 file.api.weixin.qq.com 域名
+
+    修改标识：Senparc - 20260910
+    修改描述：增加 WorkUserAuthenticationApiPathPrefix，兼容企微 SaaS 与私有化用户身份接口路径差异
 
 ----------------------------------------------------------------*/
 
@@ -105,10 +108,20 @@ namespace Senparc.Weixin
         /// <summary>
         /// 网站根目录绝对路径
         /// </summary>
+        [Obsolete("请使用 RootDirectoryPath", true)]
         public static string RootDictionaryPath
         {
-            get => CO2NET.Config.RootDictionaryPath;
-            set => CO2NET.Config.RootDictionaryPath = value;
+            get => CO2NET.Config.RootDirectoryPath;
+            set => CO2NET.Config.RootDirectoryPath = value;
+        }
+
+        /// <summary>
+        /// 网站根目录绝对路径
+        /// </summary>
+        public static string RootDirectoryPath
+        {
+            get => CO2NET.Config.RootDirectoryPath;
+            set => CO2NET.Config.RootDirectoryPath = value;
         }
 
         /// <summary>
@@ -141,12 +154,34 @@ namespace Senparc.Weixin
 
         #endregion
 
-        #region 企业微信API的服务器地址（默认为：https://qyapi.weixin.qq.com）
+        #region 企业微信 API 的服务器地址（默认为：https://qyapi.weixin.qq.com）
 
         /// <summary>
-        /// 企业微信API的服务器地址（默认为：https://qyapi.weixin.qq.com）
+        /// 企业微信 API 的服务器地址（默认为：https://qyapi.weixin.qq.com）
         /// </summary>
         public static string ApiWorkHost { get; set; } = "https://qyapi.weixin.qq.com";
+
+        private static string _workUserAuthenticationApiPathPrefix = "auth";
+
+        /// <summary>
+        /// 企业微信用户身份相关接口路径前缀（默认：auth，可设置为 user 以兼容部分私有化版本）。
+        /// </summary>
+        public static string WorkUserAuthenticationApiPathPrefix
+        {
+            get => _workUserAuthenticationApiPathPrefix;
+            set => _workUserAuthenticationApiPathPrefix = string.IsNullOrWhiteSpace(value)
+                ? "auth"
+                : value.Trim('/');
+        }
+
+        #endregion
+
+        #region 微信支付 API 的服务器地址（默认为：https://api.mch.weixin.qq.com）
+
+        /// <summary>
+        /// 微信支付 API 的服务器地址（默认为：https://api.mch.weixin.qq.com）
+        /// </summary>
+        public static string TenPayV3Host { get; set; } = "https://api.mch.weixin.qq.com";
 
         #endregion
 

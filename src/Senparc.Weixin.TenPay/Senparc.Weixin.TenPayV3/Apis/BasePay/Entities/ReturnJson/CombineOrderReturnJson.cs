@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：CombineOrderJson.cs
     文件功能描述：微信合单支付订单实体类
@@ -312,5 +312,12 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
             /// </summary>
             public string goods_remark { get; set; }
         }
+
+        // 2025 年曾为规避 Swagger SchemaId 冲突重命名以下类型。
+        // 保留新名称作为别名，但公开属性继续使用已发布的历史类型签名。
+        public class CombineSceneInfo : Scene_Info { }
+        public class CombineAmount : Amount { }
+        public class CombinePromotionDetail : Promotion_Detail { }
+        public class CombineGoodsDetail : Goods_Detail { }
     }
 }

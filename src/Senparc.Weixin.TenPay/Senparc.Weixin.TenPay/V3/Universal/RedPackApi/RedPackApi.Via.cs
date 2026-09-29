@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：RedPackApi.Via.cs
     文件功能描述：RedPackApi.cs 的部分类，用于存放服务商的接口
@@ -29,6 +29,12 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     修改标识：Senparc - 20170925
     修改描述：添加新规定提示：红包超过2000元必须提供scene_id参数：
     https://pay.weixin.qq.com/wiki/doc/api/tools/cash_coupon.php?chapter=13_4&index=3
+
+    修改标识：Senparc - 20260523
+    修改描述：补充更新日志，完善文件头修改记录
+
+    修改标识：Senparc - 20260718
+    修改描述：v1.18.3 统一红包请求资源释放与证书处理
 
 ----------------------------------------------------------------*/
 
@@ -42,7 +48,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml;
 
-#if !NET451
+#if !NET462
 using System.Net.Http;
 # endif
 
@@ -144,47 +150,17 @@ namespace Senparc.Weixin.TenPay.V3
             string data = packageReqHandler.ParseXML();
 
             //发红包接口地址
-            string url = "https://api.mch.weixin.qq.com/mmpaymkttransfers/sendredpack";
+            string url = Senparc.Weixin.Config.TenPayV3Host + "/mmpaymkttransfers/sendredpack";
             //本地或者服务器的证书位置（证书在微信支付申请成功发来的通知邮件中）
             string cert = tenPayCertPath;
             //私钥（在安装证书时设置）
             string password = mchId;
 
-            //调用证书
-            X509Certificate2 cer = new X509Certificate2(cert, password, X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.MachineKeySet);
-
-            XmlDocument doc = new Senparc.CO2NET.ExtensionEntities.XmlDocument_XxeFixed();
-            #region 发起post请求，载入到doc中
-
-#if NET451
-            ServicePointManager.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback(CheckValidationResult);
-            //X509Certificate cer = new X509Certificate(cert, password);
-            HttpWebRequest webrequest = (HttpWebRequest)HttpWebRequest.Create(url);
-            webrequest.ClientCertificates.Add(cer);
-            webrequest.Method = "post";
-
-
-            byte[] postdatabyte = Encoding.UTF8.GetBytes(data);
-            webrequest.ContentLength = postdatabyte.Length;
-            Stream stream = webrequest.GetRequestStream();
-            stream.Write(postdatabyte, 0, postdatabyte.Length);
-            stream.Close();
-
-            HttpWebResponse httpWebResponse = (HttpWebResponse)webrequest.GetResponse();
-            StreamReader streamReader = new StreamReader(httpWebResponse.GetResponseStream());
-            string response = streamReader.ReadToEnd();
-            doc.LoadXml(response);
-#else
-            HttpClientHandler handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(cer);
-
-            HttpClient client = new HttpClient(handler);
-            HttpContent hc = new StringContent(data);
-            var request = client.PostAsync(url, hc).Result;
-            var response = request.Content.ReadAsStreamAsync().Result;
-            doc.Load(response);
-#endif
-            #endregion
+            XmlDocument doc;
+            using (var cer = LoadCertificate(cert, password))
+            {
+                doc = RedPackHttpUtility.PostXml(url, data, cer);
+            }
 
 
             //XDocument xDoc = XDocument.Load(responseContent);
@@ -300,3 +276,4 @@ namespace Senparc.Weixin.TenPay.V3
         #endregion
     }
 }
+

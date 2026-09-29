@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,13 +19,13 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：ProviderTokenContainer.cs
     文件功能描述：通用接口ProviderToken容器，用于自动管理ProviderToken，如果过期会重新获取
 
 
-    创建标识：Senparc - 20150313
+    创建标识：Senparc - 20140128
 
     修改标识：Senparc - 20150313
     修改描述：整理接口
@@ -77,6 +77,10 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20190826
     修改描述：v3.5.13 优化 Register() 方法
+
+    修改标识：Senparc - 20260718
+    修改描述：v3.31.1 改用分布式锁并在锁内重新读取服务商令牌状态
+
 ----------------------------------------------------------------*/
 
 using System;
@@ -129,18 +133,7 @@ namespace Senparc.Weixin.Work.Containers
     public class ProviderTokenContainer : BaseContainer<ProviderTokenBag>
     {
         private const string UN_REGISTER_ALERT = "此CorpId尚未注册，ProviderTokenContainer.Register完成注册（全局执行一次即可）！";
-
-
-        /// <summary>
-        /// 获取全局唯一Key
-        /// </summary>
-        /// <param name="corpId"></param>
-        /// <param name="corpSecret"></param>
-        private static string BuildingKey(string corpId, string corpSecret)
-        {
-            return corpId + corpSecret;
-        }
-
+        private const string LockResourceName = "Work.ProviderTokenContainer";
 
         #region 同步方法
 
@@ -153,12 +146,8 @@ namespace Senparc.Weixin.Work.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         public static void Register(string corpId, string corpSecret, string name = null)
         {
-            var task = RegisterAsync(corpId, corpSecret, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(corpId, corpSecret, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(corpId, corpSecret, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -170,7 +159,7 @@ namespace Senparc.Weixin.Work.Containers
         /// <returns></returns>
         public static string TryGetToken(string corpId, string corpSecret, bool getNewToken = false)
         {
-            if (!CheckRegistered(BuildingKey(corpId, corpSecret)) || getNewToken)
+            if (!CheckRegistered(AccessTokenContainer.BuildingKey(corpId, corpSecret)) || getNewToken)
             {
                 Register(corpId, corpSecret);
             }
@@ -198,14 +187,16 @@ namespace Senparc.Weixin.Work.Containers
         /// <returns></returns>
         public static ProviderTokenResult GetTokenResult(string corpId, string corpSecret, bool getNewToken = false)
         {
-            if (!CheckRegistered(BuildingKey(corpId, corpSecret)))
+            if (!CheckRegistered(AccessTokenContainer.BuildingKey(corpId, corpSecret)))
             {
                 throw new WeixinWorkException(UN_REGISTER_ALERT);
             }
 
-            var providerTokenBag = TryGetItem(BuildingKey(corpId, corpSecret));
-            lock (providerTokenBag.Lock)
+            var shortKey = AccessTokenContainer.BuildingKey(corpId, corpSecret);
+            var providerTokenBag = TryGetItem(shortKey);
+            using (Cache.BeginCacheLock(LockResourceName, shortKey))
             {
+                providerTokenBag = TryGetItem(shortKey);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || providerTokenBag.ExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -239,8 +230,8 @@ namespace Senparc.Weixin.Work.Containers
         /// <param name="name">标记AccessToken名称（如微信公众号名称），帮助管理员识别。当 name 不为 null 和 空值时，本次注册内容将会被记录到 Senparc.Weixin.Config.SenparcWeixinSetting.Items[name] 中，方便取用。</param>
         public static async Task RegisterAsync(string corpId, string corpSecret, string name = null)
         {
-            var shortKey = BuildingKey(corpId, corpSecret);
-            RegisterFuncCollection[shortKey] = async () =>
+            var shortKey = AccessTokenContainer.BuildingKey(corpId, corpSecret);
+            SetRegistrationCallback(shortKey, async () =>
             {
                 //using (FlushCache.CreateInstance())
                 //{
@@ -252,10 +243,10 @@ namespace Senparc.Weixin.Work.Containers
                     ExpireTime = DateTimeOffset.MinValue,
                     ProviderTokenResult = new ProviderTokenResult()
                 };
-                await UpdateAsync(BuildingKey(corpId, corpSecret), bag, null).ConfigureAwait(false);
+                await UpdateAsync(AccessTokenContainer.BuildingKey(corpId, corpSecret), bag, null).ConfigureAwait(false);
                 return bag;
                 //}
-            };
+            });
             await RegisterFuncCollection[shortKey]().ConfigureAwait(false);
 
             if (!name.IsNullOrEmpty())
@@ -274,7 +265,7 @@ namespace Senparc.Weixin.Work.Containers
         /// <returns></returns>
         public static async Task<string> TryGetTokenAsync(string corpId, string corpSecret, bool getNewToken = false)
         {
-            if (!await CheckRegisteredAsync(BuildingKey(corpId, corpSecret)).ConfigureAwait(false) || getNewToken)
+            if (!await CheckRegisteredAsync(AccessTokenContainer.BuildingKey(corpId, corpSecret)).ConfigureAwait(false) || getNewToken)
             {
                 await RegisterAsync(corpId, corpSecret).ConfigureAwait(false);
             }
@@ -303,14 +294,16 @@ namespace Senparc.Weixin.Work.Containers
         /// <returns></returns>
         public static async Task<ProviderTokenResult> GetTokenResultAsync(string corpId, string corpSecret, bool getNewToken = false)
         {
-            if (!await CheckRegisteredAsync(BuildingKey(corpId, corpSecret)).ConfigureAwait(false))
+            if (!await CheckRegisteredAsync(AccessTokenContainer.BuildingKey(corpId, corpSecret)).ConfigureAwait(false))
             {
                 throw new WeixinWorkException(UN_REGISTER_ALERT);
             }
 
-            var providerTokenBag = await TryGetItemAsync(BuildingKey(corpId, corpSecret)).ConfigureAwait(false);
-            //lock (providerTokenBag.Lock)
+            var shortKey = AccessTokenContainer.BuildingKey(corpId, corpSecret);
+            var providerTokenBag = await TryGetItemAsync(shortKey).ConfigureAwait(false);
+            using (await Cache.BeginCacheLockAsync(LockResourceName, shortKey).ConfigureAwait(false))
             {
+                providerTokenBag = await TryGetItemAsync(shortKey).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || providerTokenBag.ExpireTime <= DateTimeOffset.Now)
                 {
                     //已过期，重新获取

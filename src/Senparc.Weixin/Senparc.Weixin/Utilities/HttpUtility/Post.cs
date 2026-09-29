@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,13 +19,13 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：Post.cs
     文件功能描述：Post
 
 
-    创建标识：Senparc - 20150211
+    创建标识：Senparc - 20140923
 
     修改标识：Senparc - 20150303
     修改描述：整理接口
@@ -38,7 +38,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20150407
     修改描述：发起Post请求方法修改，为了上传永久视频素材
- 
+
     修改标识：Senparc - 20160720
     修改描述：增加了PostFileGetJsonAsync的异步方法（与之前的方法多一个参数）
 
@@ -47,12 +47,15 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20180928
     修改描述：将 CO2NET 已经移植的方法标记为过期
-    
+
     修改标识：Senparc - 20190129
     修改描述：统一 CommonJsonSend.Send<T>() 方法请求接口
 
     修改标识：Senparc - 20190602
     修改描述：添加 Config.ThrownWhenJsonResultFaild 判断
+
+    修改标识：Senparc - 20260726
+    修改描述：v6.25.0 新增基于 JsonTypeInfo 的 Post 响应解析以兼容裁剪与 Native AOT；增强微信 API 请求序列化、错误响应与 Native AOT 兼容能力
 
 ----------------------------------------------------------------*/
 
@@ -68,8 +71,10 @@ using System.Threading.Tasks;
 using Senparc.Weixin.Entities;
 using Senparc.Weixin.Exceptions;
 using Senparc.CO2NET.Helpers;
+using Senparc.Weixin.Helpers.Serializers;
+using System.Text.Json.Serialization.Metadata;
 
-#if NET451
+#if NET462
 using System.Web.Script.Serialization;
 using Senparc.Weixin.HttpUtility;
 #else
@@ -94,7 +99,7 @@ namespace Senparc.Weixin.HttpUtility
             if (returnText.Contains("errcode"))
             {
                 //可能发生错误
-                WxJsonResult errorResult = SerializerHelper.GetObject<WxJsonResult>(returnText);
+                WxJsonResult errorResult = WeixinJsonSerializer.DeserializeWxJsonResult(returnText);
 
                 ErrorJsonResultException ex = null;
                 if (errorResult.errcode != ReturnCode.请求成功)
@@ -118,6 +123,33 @@ namespace Senparc.Weixin.HttpUtility
             //TODO:加入特殊情况下的回调处理
 
             return result;
+        }
+
+        /// <summary>
+        /// 使用 System.Text.Json 源生成元数据获取 Post 结果，兼容裁剪及 Native AOT。
+        /// </summary>
+        public static T GetResult<T>(string returnText, JsonTypeInfo<T> jsonTypeInfo)
+        {
+            if (returnText.Contains("errcode"))
+            {
+                var errorResult = WeixinJsonSerializer.DeserializeWxJsonResult(returnText);
+                ErrorJsonResultException ex = null;
+                if (errorResult.errcode != ReturnCode.请求成功)
+                {
+                    ex = new ErrorJsonResultException(
+                        string.Format("微信Post请求发生错误！错误代码：{0}，说明：{1}",
+                                      (int)errorResult.errcode,
+                                      errorResult.errmsg),
+                        null, errorResult);
+                }
+
+                if (Config.ThrownWhenJsonResultFaild && ex != null)
+                {
+                    throw ex;
+                }
+            }
+
+            return WeixinJsonSerializer.Deserialize(returnText, jsonTypeInfo);
         }
     }
 }

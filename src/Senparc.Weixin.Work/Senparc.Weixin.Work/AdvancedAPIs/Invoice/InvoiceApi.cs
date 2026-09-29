@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
  
     文件名：InvoiceApi.cs
     文件功能描述：电子发票接口
@@ -27,6 +27,8 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     
     创建标识：Senparc - 20181009
 
+    修改标识：Senparc - 20260725
+    修改描述：v3.32.1 支持当前批量查询电子发票分部实现
 
 ----------------------------------------------------------------*/
 
@@ -44,7 +46,7 @@ namespace Senparc.Weixin.Work.AdvancedAPIs
     /// 电子发票接口
     /// </summary>
     [NcApiBind(NeuChar.PlatformType.WeChat_Work, true)]
-    public static class InvoiceApi
+    public static partial class InvoiceApi
     {
         #region 同步方法
 

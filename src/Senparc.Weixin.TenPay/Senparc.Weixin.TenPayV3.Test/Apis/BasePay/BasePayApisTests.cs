@@ -17,6 +17,7 @@ using System.Xml.Linq;
 namespace Senparc.Weixin.TenPayV3.Apis.Tests
 {
     [TestClass()]
+    [TestCategory("Live")]
     public class BasePayApisTests : BaseTenPayTest
     {
         string openId = "olPjZjsXuQPJoV0HlruZkNzKc91E";//换成测试人的 OpenId
@@ -28,7 +29,7 @@ namespace Senparc.Weixin.TenPayV3.Apis.Tests
         public void CertificatesTest()
         {
             BasePayApis basePayApis = new BasePayApis();
-            var certs = basePayApis.CertificatesAsync().GetAwaiter().GetResult();
+            var certs = basePayApis.CertificatesAsync(Senparc.Weixin.Config.SenparcWeixinSetting.TenpayV3Setting.EncryptionType.Value).GetAwaiter().GetResult();
             Assert.IsNotNull(certs);
             Console.WriteLine(certs.ToJson(true));
             Assert.IsTrue(certs.ResultCode.Success);
@@ -38,8 +39,16 @@ namespace Senparc.Weixin.TenPayV3.Apis.Tests
 
             var tenpayV3Setting = Senparc.Weixin.Config.SenparcWeixinSetting.TenpayV3Setting;
             var cert = certs.data.First();
-            var pubKey = SecurityHelper.AesGcmDecryptCiphertext(tenpayV3Setting.TenPayV3_APIv3Key, cert.encrypt_certificate.nonce,
+            var pubKey = string.Empty;
+            if (Senparc.Weixin.Config.SenparcWeixinSetting.TenpayV3Setting.EncryptionType == CertType.SM)
+            {
+                pubKey = GmHelper.Sm4DecryptGCM(tenpayV3Setting.TenPayV3_APIv3Key, cert.encrypt_certificate.nonce, cert.encrypt_certificate.associated_data, cert.encrypt_certificate.ciphertext);
+            }
+            else
+            {
+                pubKey = SecurityHelper.AesGcmDecryptCiphertext(tenpayV3Setting.TenPayV3_APIv3Key, cert.encrypt_certificate.nonce,
                      cert.encrypt_certificate.associated_data, cert.encrypt_certificate.ciphertext);
+            }
             Console.WriteLine(pubKey);
             Assert.IsNotNull(pubKey);
         }
@@ -453,7 +462,7 @@ namespace Senparc.Weixin.TenPayV3.Apis.Tests
             var total = basePayApis.OrderQueryByOutTradeNoAsync(out_refund_no, TenPayV3Info.MchId).GetAwaiter().GetResult().amount.total;
 
             //请求退款
-            RefundRequsetData requestData = new(transaction_id, null, out_refund_no, "退款单元测试", null, null, new(total, null, total, "CNY"), null);
+            RefundRequestData requestData = new(transaction_id, null, out_refund_no, "退款单元测试", null, null, new(total, null, total, "CNY"), null);
             var result = basePayApis.RefundAsync(requestData).GetAwaiter().GetResult();
 
             Console.WriteLine("微信支付 V3 退款结果：" + result.ToJson(true));

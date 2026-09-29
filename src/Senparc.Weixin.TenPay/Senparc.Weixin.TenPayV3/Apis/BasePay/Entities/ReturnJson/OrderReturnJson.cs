@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：OrderJson.cs
     文件功能描述：微信支付订单实体类
@@ -27,12 +27,16 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     
     创建标识：Senparc - 20210813
     
+    修改标识：Senparc - 20230821
+    修改描述：v0.7.10.3 基础支付参数缺失处理 RP#2901
+
 ----------------------------------------------------------------*/
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Senparc.Weixin.TenPayV3.Entities;
 using Senparc.Weixin.TenPayV3.Apis.Entities;
@@ -154,6 +158,20 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
             /// 示例值：oUpF8uMuAJO_M2pxb1Q9zNjWeS6o
             /// </summary>
             public string openid { get; set; }
+
+            #region 服务商专用
+            /// <summary>
+            /// 用户在服务商appid下的唯一标识。 下单前需获取到用户的Openid，Openid获取详见。
+            /// 示例值：oUpF8uMuAJO_M2pxb1Q9zNjWeS6o
+            /// </summary>
+            public string sp_openid { get; set; }
+
+            /// <summary>
+            /// 用户在子商户appid下的唯一标识。若传sub_openid，那sub_appid必填。下单前需获取到用户的Openid，Openid获取详见。
+            /// 示例值：oUpF8uMuAJO_M2pxb1Q9zNjWeS6o
+            /// </summary>
+            public string sub_openid { get; set; }
+            #endregion
         }
 
         /// <summary>
@@ -257,18 +275,21 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
             /// 微信出资，单位为分
             /// 示例值：0
             /// </summary>
+            [JsonConverter(typeof(StringOrNumberJsonConverter))]
             public string wechatpay_contribute { get; set; }
 
             /// <summary>
             /// 商户出资，单位为分
             /// 示例值：0
             /// </summary>
+            [JsonConverter(typeof(StringOrNumberJsonConverter))]
             public string merchant_contribute { get; set; }
 
             /// <summary>
             /// 其他出资，单位为分
             /// 示例值：0
             /// </summary>
+            [JsonConverter(typeof(StringOrNumberJsonConverter))]
             public string other_contribute { get; set; }
 
             /// <summary>
@@ -322,5 +343,12 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
             /// </summary>
             public string goods_remark { get; set; }
         }
+
+        // 新名称作为源码兼容别名；历史名称用于保持已发布程序集签名。
+        public class OrderPayer : Payer { }
+        public class OrderAmount : Amount { }
+        public class OrderSceneInfo : Scene_Info { }
+        public class OrderPromotionDetail : Promotion_Detail { }
+        public class OrderGoodsDetail : Goods_Detail { }
     }
 }

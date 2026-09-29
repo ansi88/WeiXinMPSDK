@@ -1,29 +1,34 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：EntityHelper.cs
     文件功能描述：实体与xml相互转换
     
     
-    创建标识：Senparc - 20150313
-    
+    创建标识：Senparc - 20130113
+
     修改标识：Senparc - 20150313
     修改描述：整理接口
-    
+
     修改标识：Senparc - 20172008
     修改描述：v1.2.0-beta1 为支持.NET 3.5/4.0进行重构
-   
+
     修改标识：Senparc - 20180623
     修改描述：v2.0.3 支持 Senparc.Weixin v5.0.3，EntityHelper.FillEntityWithXml() 支持 int[] 和 long[]
 
     修改标识：Senparc - 20181226
     修改描述：v3.3.2 修改 DateTime 为 DateTimeOffset
 
+    修改标识：Senparc - 20260718
+    修改描述：v3.32.0 缓存实体属性排序反射元数据
+
 ----------------------------------------------------------------*/
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Xml.Linq;
 using Senparc.Weixin.Work.Entities;
 using Senparc.Weixin.Work.Entities.Request.KF;
@@ -39,6 +44,49 @@ namespace Senparc.Weixin.Work.Helpers
     /// </summary>
     public static class EntityHelper
     {
+        private static readonly ConcurrentDictionary<Type, PropertyInfo[]> EntityProperties = new ConcurrentDictionary<Type, PropertyInfo[]>();
+        private static readonly ConcurrentDictionary<Type, PropertyInfo[]> OrderedEntityProperties = new ConcurrentDictionary<Type, PropertyInfo[]>();
+
+        private static PropertyInfo[] GetEntityProperties(Type type)
+        {
+            return EntityProperties.GetOrAdd(type, value => value.GetProperties());
+        }
+
+        private static PropertyInfo[] GetOrderedEntityProperties(Type type)
+        {
+            return OrderedEntityProperties.GetOrAdd(type, value =>
+            {
+                var propertyOrder = new List<string>() { "ToUserName", "FromUserName", "CreateTime", "MsgType" };
+                if (typeof(ResponseMessageNews).IsAssignableFrom(value))
+                {
+                    propertyOrder.AddRange(new[] { "ArticleCount", "Articles", "FuncFlag", "Title ", "Description ", "PicUrl", "Url" });
+                }
+                else if (typeof(ResponseMessageMpNews).IsAssignableFrom(value))
+                {
+                    propertyOrder.AddRange(new[] { "MpNewsArticleCount", "MpNewsArticles", "FuncFlag", "Title ", "Description ", "PicUrl", "Url" });
+                }
+                else if (typeof(ResponseMessageImage).IsAssignableFrom(value))
+                {
+                    propertyOrder.AddRange(new[] { "Image", "MediaId " });
+                }
+                else if (typeof(ResponseMessageVoice).IsAssignableFrom(value))
+                {
+                    propertyOrder.AddRange(new[] { "Voice", "MediaId " });
+                }
+                else if (typeof(ResponseMessageVideo).IsAssignableFrom(value))
+                {
+                    propertyOrder.AddRange(new[] { "Video", "MediaId ", "Title", "Description" });
+                }
+                else
+                {
+                    propertyOrder.AddRange(new[] { "Content", "FuncFlag" });
+                }
+
+                propertyOrder.Add("AgentID");
+                return value.GetProperties().OrderBy(property => propertyOrder.IndexOf(property.Name)).ToArray();
+            });
+        }
+
         /// <summary>
         /// 根据XML信息填充实实体
         /// </summary>
@@ -50,7 +98,7 @@ namespace Senparc.Weixin.Work.Helpers
             entity = entity ?? new T();
             var root = doc.Root;
 
-            var props = entity.GetType().GetProperties();
+            var props = GetEntityProperties(entity.GetType());
             foreach (var prop in props)
             {
                 var propName = prop.Name;
@@ -281,67 +329,35 @@ namespace Senparc.Weixin.Work.Helpers
             var root = doc.Root;
 
             /* 注意！
-			 * 经过测试，微信对字段排序有严格要求，这里对排序进行强制约束
+			 * 微信对字段排序有严格要求；排序后的属性元数据按实体类型缓存。
 			*/
-            var propNameOrder = new List<string>() { "ToUserName", "FromUserName", "CreateTime", "MsgType" };
-            //不同返回类型需要对应不同特殊格式的排序
-            if (entity is ResponseMessageNews)
-            {
-                propNameOrder.AddRange(new[] { "ArticleCount", "Articles", "FuncFlag",/*以下是Atricle属性*/ "Title ", "Description ", "PicUrl", "Url" });
-            }
-            else if (entity is ResponseMessageMpNews)
-            {
-                propNameOrder.AddRange(new[] { "MpNewsArticleCount", "MpNewsArticles", "FuncFlag",/*以下是MpNewsAtricle属性*/ "Title ", "Description ", "PicUrl", "Url" });
-            }
-            else if (entity is ResponseMessageImage)
-            {
-                propNameOrder.AddRange(new[] { "Image",/*以下是Image属性*/ "MediaId " });
-            }
-            else if (entity is ResponseMessageVoice)
-            {
-                propNameOrder.AddRange(new[] { "Voice",/*以下是Voice属性*/ "MediaId " });
-            }
-            else if (entity is ResponseMessageVideo)
-            {
-                propNameOrder.AddRange(new[] { "Video",/*以下是Video属性*/ "MediaId ", "Title", "Description" });
-            }
-            else
-            {
-                //如Text类型
-                propNameOrder.AddRange(new[] { "Content", "FuncFlag" });
-            }
-
-            propNameOrder.AddRange(new[] { "AgentID" });
-
-            Func<string, int> orderByPropName = propNameOrder.IndexOf;
-
-            var props = entity.GetType().GetProperties().OrderBy(p => orderByPropName(p.Name)).ToList();
+            var props = GetOrderedEntityProperties(entity.GetType());
             foreach (var prop in props)
             {
                 var propName = prop.Name;
                 if (propName == "Articles")
                 {
                     //文章列表
-                    var atriclesElement = new XElement("Articles");
+                    var articlesElement = new XElement("Articles");
                     var articales = prop.GetValue(entity, null) as List<Article>;
                     foreach (var articale in articales)
                     {
                         var subNodes = ConvertEntityToXml(articale).Root.Elements();
-                        atriclesElement.Add(new XElement("item", subNodes));
+                        articlesElement.Add(new XElement("item", subNodes));
                     }
-                    root.Add(atriclesElement);
+                    root.Add(articlesElement);
                 }
                 else if (propName == "MpNewsArticles")
                 {
-                    var mpNewsAtriclesElement = new XElement("MpNewsArticles");
+                    var mpNewsArticlesElement = new XElement("MpNewsArticles");
                     var mpNewsAtricles = prop.GetValue(entity, null) as List<MpNewsArticle>;
                     foreach (var mpNewsArticale in mpNewsAtricles)
                     {
                         var subNodes = ConvertEntityToXml(mpNewsArticale).Root.Elements();
-                        mpNewsAtriclesElement.Add(subNodes);
+                        mpNewsArticlesElement.Add(subNodes);
                     }
 
-                    root.Add(mpNewsAtriclesElement);
+                    root.Add(mpNewsArticlesElement);
                 }
                 else if (propName == "Image" || propName == "Video" || propName == "Voice")
                 {

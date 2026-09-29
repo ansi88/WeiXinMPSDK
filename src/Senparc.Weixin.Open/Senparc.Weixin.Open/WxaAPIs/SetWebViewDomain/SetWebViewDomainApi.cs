@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2020 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：SetWebViewDomainApi.cs
     文件功能描述：设置业务域名接口
@@ -33,6 +33,7 @@ using Senparc.CO2NET.Extensions;
 using Senparc.NeuChar;
 using Senparc.Weixin.CommonAPIs;
 using Senparc.Weixin.Open.WxaAPIs.SetWebViewDomain;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -51,7 +52,8 @@ namespace Senparc.Weixin.Open.WxaAPIs
         /// <param name="webviewdomain">小程序业务域名，当 action 参数是 get 时不需要此字段</param>
         /// <param name="timeOut"></param>
         /// <returns></returns>
-        public static SetWebViewDomainResultJson SetWebViewDomain(string accessToken, SetWebViewDomainAction action,
+        [Obsolete("请使用DomainApi.SetWebViewDomain")]
+        public static SetWebViewDomainJsonResult SetWebViewDomain(string accessToken, SetWebViewDomainAction action,
             List<string> webviewdomain,
             int timeOut = Config.TIME_OUT)
         {
@@ -75,7 +77,7 @@ namespace Senparc.Weixin.Open.WxaAPIs
                 };
             }
 
-            return CommonJsonSend.Send<SetWebViewDomainResultJson>(null, url, data, CommonJsonSendType.POST, timeOut);
+            return CommonJsonSend.Send<SetWebViewDomainJsonResult>(null, url, data, CommonJsonSendType.POST, timeOut);
         }
 
         #endregion
@@ -91,7 +93,8 @@ namespace Senparc.Weixin.Open.WxaAPIs
         /// <param name="webviewdomain">小程序业务域名，当 action 参数是 get 时不需要此字段</param>
         /// <param name="timeOut"></param>
         /// <returns></returns>
-        public static async Task<SetWebViewDomainResultJson> SetWebViewDomainAsync(string accessToken, SetWebViewDomainAction action,
+        [Obsolete("请使用DomainApi.SetWebViewDomainAsync")]
+        public static async Task<SetWebViewDomainJsonResult> SetWebViewDomainAsync(string accessToken, SetWebViewDomainAction action,
             List<string> webviewdomain,
             int timeOut = Config.TIME_OUT)
         {
@@ -115,8 +118,9 @@ namespace Senparc.Weixin.Open.WxaAPIs
                 };
             }
 
-            return await CommonJsonSend.SendAsync<SetWebViewDomainResultJson>(null, url, data, CommonJsonSendType.POST, timeOut).ConfigureAwait(false);
+            return await CommonJsonSend.SendAsync<SetWebViewDomainJsonResult>(null, url, data, CommonJsonSendType.POST, timeOut).ConfigureAwait(false);
         }
         #endregion
     }
 }
+

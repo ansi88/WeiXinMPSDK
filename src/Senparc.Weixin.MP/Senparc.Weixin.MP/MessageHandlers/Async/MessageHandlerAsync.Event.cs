@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：MessageHandlerAsync.Event.cs
     文件功能描述：微信请求【异步方法】的集中处理方法：Event相关
@@ -79,6 +79,9 @@ namespace Senparc.Weixin.MP.MessageHandlers
                     break;
                 case Event.MASSSENDJOBFINISH://群发消息成功
                     responseMessage = await OnEvent_MassSendJobFinishRequestAsync(RequestMessage as RequestMessageEvent_MassSendJobFinish).ConfigureAwait(false);
+                    break;
+                case Event.PUBLISHJOBFINISH://事件推送发布结果
+                    responseMessage = await OnEvent_PublishJobFinishRequestAsync(RequestMessage as RequestMessageEvent_PublishJobFinish).ConfigureAwait(false);
                     break;
                 case Event.TEMPLATESENDJOBFINISH://推送模板消息成功
                     responseMessage = await OnEvent_TemplateSendJobFinishRequestAsync(RequestMessage as RequestMessageEvent_TemplateSendJobFinish).ConfigureAwait(false);
@@ -186,6 +189,15 @@ namespace Senparc.Weixin.MP.MessageHandlers
                     responseMessage = await OnEvent_Subscribe_Msg_SentRequestAsync(RequestMessage as RequestMessageEvent_Subscribe_Msg_Sent).ConfigureAwait(false);
                     break;
 
+                case Event.user_info_modified:
+                    responseMessage = await OnEvent_UserInfoModifiedRequesAsync(RequestMessage as RequestMessageEvent_UserInfoModified).ConfigureAwait(false);
+                    break;
+                case Event.user_authorization_revoke:
+                    responseMessage = await OnEvent_UserAuthorizationRevokeRequestAsync(RequestMessage as RequestMessageEvent_UserAuthorizationRevoke).ConfigureAwait(false);
+                    break;
+                case Event.user_authorization_cancellation:
+                    responseMessage = await OnEvent_UserAuthorizationCancellationRequestAsync(RequestMessage as RequestMessageEvent_UserAuthorizationCancellation).ConfigureAwait(false);
+                    break;
 
                 #region 微信认证事件推送
 
@@ -234,12 +246,12 @@ namespace Senparc.Weixin.MP.MessageHandlers
                     break;
 
                 #endregion
+
                 #region 微信电子发票
                 case Event.user_authorize_invoice:
                     responseMessage = await OnEvent_User_Authorize_InvoiceAsync(RequestMessage as RequestMessageEvent_User_Authorize_Invoice).ConfigureAwait(false);
                     break;
                 #endregion
-
 
                 default:
                     throw new Exceptions.UnknownRequestMsgTypeException("未知的Event下属请求信息", null);
@@ -253,6 +265,34 @@ namespace Senparc.Weixin.MP.MessageHandlers
         }
 
         #region Event下属分类，接收事件方法
+
+        /// <summary>
+        /// 【异步方法】Event事件类型请求之用户资料变更
+        /// </summary>
+        /// <param name="requestMessage"></param>
+        /// <returns></returns>
+        public virtual async Task<IResponseMessageBase> OnEvent_UserInfoModifiedRequesAsync(RequestMessageEvent_UserInfoModified requestMessage)
+        {
+            return await DefaultAsyncMethod(requestMessage, () => OnEvent_UserInfoModifiedRequest(requestMessage)).ConfigureAwait(false);
+        }
+        /// <summary>
+        /// 【异步方法】Event事件类型请求之用户撤回
+        /// </summary>
+        /// <param name="requestMessage"></param>
+        /// <returns></returns>
+        public virtual async Task<IResponseMessageBase> OnEvent_UserAuthorizationRevokeRequestAsync(RequestMessageEvent_UserAuthorizationRevoke requestMessage)
+        {
+            return await DefaultAsyncMethod(requestMessage, () => OnEvent_UserAuthorizationRevokeRequest(requestMessage)).ConfigureAwait(false);
+        }
+        /// <summary>
+        /// 【异步方法】Event事件类型请求之用户完成注销
+        /// </summary>
+        /// <param name="requestMessage"></param>
+        /// <returns></returns>
+        public virtual async Task<IResponseMessageBase> OnEvent_UserAuthorizationCancellationRequestAsync(RequestMessageEvent_UserAuthorizationCancellation requestMessage)
+        {
+            return await DefaultAsyncMethod(requestMessage, () => OnEvent_UserAuthorizationCancellationRequest(requestMessage)).ConfigureAwait(false);
+        }
 
         /// <summary>
         /// 【异步方法】Event事件类型请求之ENTER
@@ -320,7 +360,15 @@ namespace Senparc.Weixin.MP.MessageHandlers
         {
             return await DefaultAsyncMethod(requestMessage, () => OnEvent_MassSendJobFinishRequest(requestMessage)).ConfigureAwait(false);
         }
-
+                
+        /// <summary>
+        /// 发布任务推送结果
+        /// </summary>
+        /// <returns></returns>
+        public virtual async Task<IResponseMessageBase> OnEvent_PublishJobFinishRequestAsync(RequestMessageEvent_PublishJobFinish requestMessage)
+        {
+            return await DefaultAsyncMethod(requestMessage, () => OnEvent_PublishJobFinishRequest(requestMessage)).ConfigureAwait(false);
+        }
 
         /// <summary>
         /// 【异步方法】发送模板消息返回结果
@@ -735,6 +783,7 @@ namespace Senparc.Weixin.MP.MessageHandlers
             return await DefaultAsyncMethod(requestMessage, () => OnEvent_Submit_Invoice_Title(requestMessage)).ConfigureAwait(false);
         }
         #endregion
+
         #region 订阅通知
         /// <summary>
         /// 用户管理订阅通知

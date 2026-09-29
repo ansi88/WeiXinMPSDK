@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -85,19 +85,19 @@ namespace Senparc.Weixin.Work.Test.MessageHandlers
 </xml>";
 
         [TestMethod]
-        public void OmitMessageTest()
+        public async Task OmitMessageTest()
         {
             {
                 //发送两条响同MsgId的消息
                 var messageHandler = new OmitRepeatMessageMessageHandlers(XDocument.Parse(xmlText));
                 messageHandler.OmitRepeatedMessage = true;
-                messageHandler.Execute();
+                await messageHandler.ExecuteAsync(new CancellationToken());
                 Assert.IsNotNull(messageHandler.ResponseMessage);
                 Assert.AreEqual("末", (messageHandler.ResponseMessage as ResponseMessageText).Content);
 
                 messageHandler = new OmitRepeatMessageMessageHandlers(XDocument.Parse(xmlText));
                 messageHandler.OmitRepeatedMessage = true;
-                messageHandler.Execute();
+                await messageHandler.ExecuteAsync(new CancellationToken());
                 Assert.IsNull(messageHandler.ResponseMessage);
             }
 
@@ -119,3 +119,4 @@ namespace Senparc.Weixin.Work.Test.MessageHandlers
         }
     }
 }
+

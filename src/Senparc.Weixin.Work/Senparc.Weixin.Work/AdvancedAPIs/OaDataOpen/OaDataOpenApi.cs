@@ -1,7 +1,7 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
-    文件名：SsoApi.cs
+    文件名：OaDataOpenApi.cs
     文件功能描述：OA数据开放接口（Work中新增）
     
     
@@ -13,10 +13,14 @@
     修改标识：Senparc - 20170712
     修改描述：v14.5.1 AccessToken HandlerWaper改造
 
+    修改标识：Senparc - 20260724
+    修改描述：v3.32.1 支持 OA 数据开放接口按分部文件扩展
+
 ----------------------------------------------------------------*/
 
 using Senparc.CO2NET.Helpers;
 using Senparc.NeuChar;
+using Senparc.Weixin.Entities;
 using Senparc.Weixin.Work.AdvancedAPIs.OaDataOpen.OaDataOpenJson;
 using System;
 using System.Collections.Generic;
@@ -30,7 +34,7 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.OaDataOpen
     /// OA数据开放接口
     /// </summary>
     [NcApiBind(NeuChar.PlatformType.WeChat_Work, true)]
-    public class OaDataOpenApi
+    public partial class OaDataOpenApi
     {
         /// <summary>
         /// 打卡类型
@@ -119,6 +123,25 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.OaDataOpen
                 };
 
                 return Weixin.CommonAPIs.CommonJsonSend.Send<GetCheckinOptionJsonResult>(accessToken, url, data, CommonJsonSendType.POST, timeOut);
+            }, accessTokenOrAppKey);
+        }
+
+        /// <summary>
+        /// 添加打卡记录
+        /// 可通过接口写入打卡记录，匹配打卡规则后可在企业微信打卡明细、统计中参与展示。
+        /// https://developer.work.weixin.qq.com/document/path/99647
+        /// </summary>
+        /// <param name="accessTokenOrAppKey"></param>
+        /// <param name="data"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static WorkJsonResult AddCheckinRecord(string accessTokenOrAppKey, AddCheckinRecordRequest data, int timeOut = Config.TIME_OUT)
+        {
+            return ApiHandlerWapper.TryCommonApi(accessToken =>
+            {
+                var url = Config.ApiWorkHost + "/cgi-bin/checkin/add_checkin_record?access_token={0}";
+
+                return Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(accessToken, url, data, CommonJsonSendType.POST, timeOut);
             }, accessTokenOrAppKey);
         }
 
@@ -257,7 +280,25 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.OaDataOpen
         }
 
         /// <summary>
-        /// 获取打卡日报数据
+        /// 【异步方法】添加打卡记录
+        /// 可通过接口写入打卡记录，匹配打卡规则后可在企业微信打卡明细、统计中参与展示。
+        /// </summary>
+        /// <param name="accessTokenOrAppKey"></param>
+        /// <param name="data"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<WorkJsonResult> AddCheckinRecordAsync(string accessTokenOrAppKey, AddCheckinRecordRequest data, int timeOut = Config.TIME_OUT)
+        {
+            return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
+            {
+                var url = Config.ApiWorkHost + "/cgi-bin/checkin/add_checkin_record?access_token={0}";
+
+                return await Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(accessToken, url, data, CommonJsonSendType.POST, timeOut);
+            }, accessTokenOrAppKey).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 【异步方法】获取打卡日报数据
         /// </summary>
         /// <param name="accessTokenOrAppKey"></param>
         /// <param name="startTime"></param>

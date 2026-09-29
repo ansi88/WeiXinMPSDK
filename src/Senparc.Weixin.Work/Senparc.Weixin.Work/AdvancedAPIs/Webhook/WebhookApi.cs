@@ -1,5 +1,5 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：WebhookApi.cs
     文件功能描述：Webhook群机器人相关Api
@@ -10,6 +10,15 @@
     修改标识：lishewen - 20190706
     修改描述：v3.5.8 丰富 Webhook 接口：SendImage
 
+    修改标识：mc7246 - 20230211
+    修改描述：丰富 Webhook 接口：SendTemplateCard， SendFile
+
+    修改标识：Senparc - 20251223
+    修改描述：修复 SendFile 接口参数格式，符合企业微信官方文档
+
+    修改标识：Senparc - 20260718
+    修改描述：v3.32.0 确定性释放文件路径重载创建的文件流
+
 ----------------------------------------------------------------*/
 
 /*
@@ -18,8 +27,10 @@
 
 
 using Senparc.CO2NET.Helpers.Serializers;
+using Senparc.CO2NET.Trace;
 using Senparc.NeuChar;
 using Senparc.Weixin.Entities;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,6 +44,7 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
     public static class WebhookApi
     {
         private static string _urlFormat = Config.ApiWorkHost + "/cgi-bin/webhook/send?key={0}";
+
         #region 同步方法
         /// <summary>
         /// 群机器人发送文本信息方法
@@ -58,6 +70,61 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
             JsonSetting jsonSetting = new JsonSetting(true);
             return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
         }
+
+        /// <summary>
+        /// 群机器人发送模版卡片
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="requestData">模板信息数据</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static WorkJsonResult SendTemplateCard(string key, TemplateCardRequestData requestData, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "template_card",
+                template_card = new
+                {
+                    requestData.card_type,
+                    requestData.source,
+                    requestData.main_title,
+                    requestData.emphasis_content,
+                    requestData.quote_area,
+                    requestData.sub_title_text,
+                    requestData.horizontal_content_list,
+                    requestData.jump_list,
+                    requestData.card_action,
+                    requestData.card_image,
+                    requestData.vertical_content_list,
+                    requestData.image_text_area
+
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+            return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
+        }
+
+        /// <summary>
+        /// 群机器人发送文件信息
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="media_id">文件id，通过文件上传接口获取</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static WorkJsonResult SendFile(string key, string media_id, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "file",
+                file = new
+                {
+                    media_id
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+            return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
+        }
+
         /// <summary>
         /// 群机器人发送markdown信息
         /// </summary>
@@ -78,6 +145,33 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
             JsonSetting jsonSetting = new JsonSetting(true);
             return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
         }
+
+
+        /// <summary>
+        /// 群机器人发送markdown2信息
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="content">markdown_v2内容，最长不超过4096个字节，必须是utf8编码。
+        /// <para>特殊的，</para> 
+        /// <para>1. markdown_v2不支持字体颜色、@群成员的语法， 具体支持的语法可参考下面说明</para> 
+        /// <para>2. 消息内容在客户端 4.1.36 版本以下(安卓端为4.1.38以下) 消息表现为纯文本，建议使用最新客户端版本体验</para> </param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static WorkJsonResult SendMarkdownV2(string key, string content, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "markdown_v2",
+                markdown_v2 = new
+                {
+                    content
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+
+            return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
+        }
+
         /// <summary>
         /// 群机器人发送图片信息
         /// </summary>
@@ -109,7 +203,7 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
         /// <returns></returns>
         public static WorkJsonResult SendImage(string key, string filepath, int timeOut = Config.TIME_OUT)
         {
-            FileStream file = new FileStream(filepath, FileMode.Open);
+            using FileStream file = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return SendImage(key, file, timeOut);
         }
         /// <summary>
@@ -138,6 +232,39 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
             JsonSetting jsonSetting = new JsonSetting(true);
             return Senparc.Weixin.CommonAPIs.CommonJsonSend.Send<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting);
         }
+
+        /// <summary>
+        /// 上传文件
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="filepath"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static UploadMediaResult UploadMedia(string key, string filepath, int timeOut = Config.TIME_OUT)
+        {
+            var url = string.Format(Config.ApiWorkHost + "/cgi-bin/webhook/upload_media?key={0}&type=file", key);
+            var fileDictionary = new Dictionary<string, string>();
+            fileDictionary["name"] = "media";
+            fileDictionary["filename"] = filepath;
+
+            return Senparc.CO2NET.HttpUtility.Post.PostFileGetJson<UploadMediaResult>(CommonDI.CommonSP, url, null, fileDictionary, null, timeOut: timeOut);
+        }
+
+        /// <summary>
+        /// 上传文件
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="filepath"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static UploadMediaResult UploadMedia(string key, Stream fileStream, int timeOut = Config.TIME_OUT)
+        {
+            var url = string.Format(Config.ApiWorkHost + "/cgi-bin/webhook/upload_media?key={0}&type=file", key);
+            fileStream.Seek(timeOut, SeekOrigin.Begin);
+            return Senparc.CO2NET.HttpUtility.Post.PostGetJson<UploadMediaResult>(CommonDI.CommonSP, url, null, fileStream, null, timeOut: timeOut);
+
+        }
+
         #endregion
 
         #region 异步方法
@@ -165,6 +292,60 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
             JsonSetting jsonSetting = new JsonSetting(true);
             return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// 【异步方法】群机器人发送模版卡片
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="requestData">模板信息数据</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<WorkJsonResult> SendTemplateCardAsync(string key, TemplateCardRequestData requestData, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "template_card",
+                template_card = new
+                {
+                    requestData.card_type,
+                    requestData.source,
+                    requestData.main_title,
+                    requestData.emphasis_content,
+                    requestData.quote_area,
+                    requestData.sub_title_text,
+                    requestData.horizontal_content_list,
+                    requestData.jump_list,
+                    requestData.card_action,
+                    requestData.card_image,
+                    requestData.vertical_content_list,
+                    requestData.image_text_area
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+            return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 群机器人发送文件信息
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="media_id">文件id，通过文件上传接口获取</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<WorkJsonResult> SendFileAsync(string key, string media_id, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "file",
+                file = new
+                {
+                    media_id
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+            return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// 【异步方法】群机器人发送markdown信息
         /// </summary>
@@ -185,6 +366,31 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
             JsonSetting jsonSetting = new JsonSetting(true);
             return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// 【异步方法】群机器人发送markdown2信息
+        /// </summary>
+        /// <param name="key">机器人Key</param>
+        /// <param name="content">markdown_v2内容，最长不超过4096个字节，必须是utf8编码。
+        /// <para>特殊的，</para> 
+        /// <para>1. markdown_v2不支持字体颜色、@群成员的语法， 具体支持的语法可参考下面说明</para> 
+        /// <para>2. 消息内容在客户端 4.1.36 版本以下(安卓端为4.1.38以下) 消息表现为纯文本，建议使用最新客户端版本体验</para> </param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<WorkJsonResult> SendMarkdownV2Async(string key, string content, int timeOut = Config.TIME_OUT)
+        {
+            var data = new
+            {
+                msgtype = "markdown_v2",
+                markdown_v2 = new
+                {
+                    content
+                }
+            };
+            JsonSetting jsonSetting = new JsonSetting(true);
+            return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// 【异步方法】群机器人发送图片信息
         /// </summary>
@@ -216,8 +422,8 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
         /// <returns></returns>
         public static async Task<WorkJsonResult> SendImageAsync(string key, string filepath, int timeOut = Config.TIME_OUT)
         {
-            FileStream file = new FileStream(filepath, FileMode.Open);
-            return await SendImageAsync(key, file, timeOut);
+            using FileStream file = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return await SendImageAsync(key, file, timeOut).ConfigureAwait(false);
         }
         /// <summary>
         /// 【异步方法】群机器人发送图片信息
@@ -246,6 +452,23 @@ namespace Senparc.Weixin.Work.AdvancedAPIs.Webhook
         {
             JsonSetting jsonSetting = new JsonSetting(true);
             return await Senparc.Weixin.CommonAPIs.CommonJsonSend.SendAsync<WorkJsonResult>(key, _urlFormat, data, CommonJsonSendType.POST, timeOut, jsonSetting: jsonSetting).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 上传文件
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="filepath"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<UploadMediaResult> UploadMediaAsync(string key, string filepath, int timeOut = Config.TIME_OUT)
+        {
+            var url = string.Format(Config.ApiWorkHost + "/cgi-bin/webhook/upload_media?key={0}&type=file", key);
+            var fileDictionary = new Dictionary<string, string>();
+            fileDictionary["name"] = "media";
+            fileDictionary["filename"] = filepath;
+
+            return await Senparc.CO2NET.HttpUtility.Post.PostFileGetJsonAsync<UploadMediaResult>(CommonDI.CommonSP, url, null, fileDictionary, null, timeOut: timeOut).ConfigureAwait(false);
         }
         #endregion
     }

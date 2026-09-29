@@ -1,7 +1,7 @@
-#region Apache License Version 2.0
+﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：MediaAPI.cs
     文件功能描述：素材管理接口（原多媒体文件接口）
@@ -69,6 +69,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     修改标识：Senparc - 20211121
     修改描述：v16.17.1 完善永久素材上传接口
 
+    修改标识：Senparc - 20211207
+    修改描述：v16.17.2 优化永久素材上传接口，提供素材类型枚举：UploadForeverMediaType
+
 ----------------------------------------------------------------*/
 
 /*
@@ -77,6 +80,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Senparc.CO2NET.Extensions;
 using Senparc.NeuChar;
@@ -242,11 +246,11 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         /// <param name="type">媒体文件类型，分别有图片（image）、语音（voice）、视频（video）和缩略图（thumb）</param>
         /// <param name="timeOut">代理请求超时时间（毫秒）</param>
         /// <returns></returns>
-        public static UploadForeverMediaResult UploadForeverMedia(string accessTokenOrAppId, string file, string type, int timeOut = Config.TIME_OUT)
+        public static UploadForeverMediaResult UploadForeverMedia(string accessTokenOrAppId, string file, UploadForeverMediaType type, int timeOut = Config.TIME_OUT)
         {
             return ApiHandlerWapper.TryCommonApi(accessToken =>
             {
-                var url = string.Format(Config.ApiMpHost + "/cgi-bin/material/add_material?access_token={0}&type={1}", accessToken.AsUrlData(), type);
+                var url = string.Format(Config.ApiMpHost + "/cgi-bin/material/add_material?access_token={0}&type={1}", accessToken.AsUrlData(), type.ToString());
 
                 //因为有文件上传，所以忽略dataDictionary，全部改用文件上传格式
                 //var dataDictionary = new Dictionary<string, string>();
@@ -270,7 +274,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         /// <param name="file">上传文件的绝对路径</param>
         /// <param name="timeOut">代理请求超时时间（毫秒）</param>
         /// <returns></returns>
-        public static UploadForeverMediaResult UploadForeverVideo(string accessTokenOrAppId, string file, string title, string introduction, string type = "video", int timeOut = 40000)
+        public static UploadForeverMediaResult UploadForeverVideo(string accessTokenOrAppId, string file, string title, string introduction, UploadForeverMediaType type = UploadForeverMediaType.video, int timeOut = 40000)
         {
             return ApiHandlerWapper.TryCommonApi(accessToken =>
             {
@@ -316,20 +320,78 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         {
             return ApiHandlerWapper.TryCommonApi(accessToken =>
             {
-                string urlFormat = string.Format(Config.ApiMpHost + "/cgi-bin/material/get_material?access_token={0}", (object)accessToken.AsUrlData());
-
-                var data = new
-                {
-                    media_id = mediaId
-                };
-
                 if (stream != null)
                 {
-                    stream.Seek(0, SeekOrigin.Begin);
-                    CO2NET.HttpUtility.Post.Download(CommonDI.CommonSP, urlFormat, data.ToJson(), stream);
+                    GetForeverMediaWithContentTypeInternal(accessToken, mediaId, stream, timeOut);
                 }
                 return new WxJsonResult() { errcode = ReturnCode.请求成功, errmsg = "ok" };//无实际意义
             }, accessTokenOrAppId);
+        }
+
+        /// <summary>
+        /// 获取永久素材(除了图文、视频)，包含响应 Content-Type 信息
+        /// </summary>
+        /// <param name="accessTokenOrAppId">AccessToken或AppId（推荐使用AppId，需要先注册）</param>
+        /// <param name="mediaId">要获取的素材的media_id</param>
+        /// <param name="stream">写入文件流</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static GetForeverMediaResultJson GetForeverMediaWithContentType(string accessTokenOrAppId, string mediaId, Stream stream, int timeOut = Config.TIME_OUT)
+        {
+            return ApiHandlerWapper.TryCommonApi(accessToken =>
+            {
+                return GetForeverMediaWithContentTypeInternal(accessToken, mediaId, stream, timeOut);
+            }, accessTokenOrAppId);
+        }
+
+        private static GetForeverMediaResultJson GetForeverMediaWithContentTypeInternal(string accessToken, string mediaId, Stream stream, int timeOut)
+        {
+            var result = new GetForeverMediaResultJson()
+            {
+                errcode = ReturnCode.请求成功,
+                errmsg = "ok"
+            };
+
+            if (stream == null)
+            {
+                return result;
+            }
+
+            var urlFormat = string.Format(Config.ApiMpHost + "/cgi-bin/material/get_material?access_token={0}", accessToken.AsUrlData());
+            var data = new
+            {
+                media_id = mediaId
+            };
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            using (var postStream = new MemoryStream(Encoding.UTF8.GetBytes(data.ToJson())))
+            {
+                var response = CO2NET.HttpUtility.RequestUtility.HttpResponsePost(
+                    CommonDI.CommonSP,
+                    urlFormat,
+                    postStream: postStream,
+                    encoding: Encoding.UTF8,
+                    timeOut: timeOut,
+                    hasFormData: false,
+                    contentType: "application/json");
+
+#if NET462
+                result.content_type = response?.Result?.ContentType;
+                using (var responseStream = response?.Result?.GetResponseStream())
+                {
+                    responseStream?.CopyTo(stream);
+                }
+#else
+                result.content_type = response?.Result?.Content?.Headers?.ContentType?.ToString();
+                using (var responseStream = response?.Result?.Content?.ReadAsStreamAsync().GetAwaiter().GetResult())
+                {
+                    responseStream?.CopyTo(stream);
+                }
+#endif
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -492,6 +554,26 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
             }, accessTokenOrAppId);
         }
 
+
+        /// <summary>
+        /// 上传图文消息内的图片获取URL
+        /// </summary>
+        /// <param name="accessTokenOrAppId">AccessToken或AppId（推荐使用AppId，需要先注册）</param>
+        /// <param name="file">上传文件的绝对路径</param>
+        /// <param name="timeOut">代理请求超时时间（毫秒）</param>
+        /// <returns></returns>
+        public static UploadImgResult UploadImg(string accessTokenOrAppId, Stream fileStream, int timeOut = Config.TIME_OUT)
+        {
+            //接口文档参考：https://mp.weixin.qq.com/wiki?t=resource/res_main&id=mp1444738729
+            return ApiHandlerWapper.TryCommonApi(accessToken =>
+            {
+                var url = string.Format(Config.ApiMpHost + "/cgi-bin/media/uploadimg?access_token={0}", accessToken.AsUrlData());
+                fileStream.Seek(0, SeekOrigin.Begin);
+                return CO2NET.HttpUtility.Post.PostGetJson<UploadImgResult>(CommonDI.CommonSP, url, null, fileStream, timeOut: timeOut);
+            }, accessTokenOrAppId);
+        }
+
+
         #endregion
 
         #region AI开放接口
@@ -587,7 +669,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
                var url = string.Format(Config.ApiMpHost + "/cgi-bin/media/upload?access_token={0}&type={1}", accessToken.AsUrlData(), type.ToString().AsUrlData());
                var fileDictionary = new Dictionary<string, string>();
                fileDictionary["media"] = file;
-               return await CO2NET.HttpUtility.Post.PostFileGetJsonAsync<UploadTemporaryMediaResult>(CommonDI.CommonSP, url, null, fileDictionary, null, null, null, false, timeOut: timeOut).ConfigureAwait(false);
+               return await CO2NET.HttpUtility.Post.PostFileGetJsonAsync<UploadTemporaryMediaResult>(CommonDI.CommonSP, url, null, fileDictionary, timeOut: timeOut).ConfigureAwait(false);
 
            }, accessTokenOrAppId).ConfigureAwait(false);
         }
@@ -715,7 +797,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         /// <param name="type">媒体文件类型，分别有图片（image）、语音（voice）、视频（video）和缩略图（thumb）</param>
         /// <param name="timeOut">代理请求超时时间（毫秒）</param>
         /// <returns></returns>
-        public static async Task<UploadForeverMediaResult> UploadForeverMediaAsync(string accessTokenOrAppId, string file, string type, int timeOut = Config.TIME_OUT)
+        public static async Task<UploadForeverMediaResult> UploadForeverMediaAsync(string accessTokenOrAppId, string file, UploadForeverMediaType type, int timeOut = Config.TIME_OUT)
         {
             return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
            {
@@ -743,7 +825,7 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         /// <param name="introduction"></param>
         /// <param name="timeOut">代理请求超时时间（毫秒）</param>
         /// <returns></returns>
-        public static async Task<UploadForeverMediaResult> UploadForeverVideoAsync(string accessTokenOrAppId, string file, string title, string introduction, string type = "video", int timeOut = 40000)
+        public static async Task<UploadForeverMediaResult> UploadForeverVideoAsync(string accessTokenOrAppId, string file, string title, string introduction, UploadForeverMediaType type = UploadForeverMediaType.video, int timeOut = 40000)
         {
             return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
            {
@@ -790,20 +872,85 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
 
             return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
             {
-                string urlFormat = string.Format(Config.ApiMpHost + "/cgi-bin/material/get_material?access_token={0}", (object)accessToken.AsUrlData());
-
-                var data = new
-                {
-                    media_id = mediaId
-                };
-
                 if (stream != null)
                 {
-                    stream.Seek(0, SeekOrigin.Begin);
-                    await CO2NET.HttpUtility.Post.DownloadAsync(CommonDI.CommonSP, urlFormat, data.ToJson(), stream).ConfigureAwait(false);
+                    await GetForeverMediaWithContentTypeAsyncInternal(accessToken, mediaId, stream, timeOut).ConfigureAwait(false);
                 }
                 return new WxJsonResult() { errcode = ReturnCode.请求成功, errmsg = "ok" };//无实际意义
             }, accessTokenOrAppId).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 【异步方法】获取永久素材(除了图文、视频)，包含响应 Content-Type 信息
+        /// </summary>
+        /// <param name="accessTokenOrAppId">AccessToken或AppId（推荐使用AppId，需要先注册）</param>
+        /// <param name="mediaId">要获取的素材的media_id</param>
+        /// <param name="stream">写入文件流</param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<GetForeverMediaResultJson> GetForeverMediaWithContentTypeAsync(string accessTokenOrAppId, string mediaId, Stream stream, int timeOut = Config.TIME_OUT)
+        {
+            return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
+            {
+                return await GetForeverMediaWithContentTypeAsyncInternal(accessToken, mediaId, stream, timeOut).ConfigureAwait(false);
+            }, accessTokenOrAppId).ConfigureAwait(false);
+        }
+
+        private static async Task<GetForeverMediaResultJson> GetForeverMediaWithContentTypeAsyncInternal(string accessToken, string mediaId, Stream stream, int timeOut)
+        {
+            var result = new GetForeverMediaResultJson()
+            {
+                errcode = ReturnCode.请求成功,
+                errmsg = "ok"
+            };
+
+            if (stream == null)
+            {
+                return result;
+            }
+
+            var urlFormat = string.Format(Config.ApiMpHost + "/cgi-bin/material/get_material?access_token={0}", accessToken.AsUrlData());
+            var data = new
+            {
+                media_id = mediaId
+            };
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            using (var postStream = new MemoryStream(Encoding.UTF8.GetBytes(data.ToJson())))
+            {
+                var response = await CO2NET.HttpUtility.RequestUtility.HttpResponsePostAsync(
+                    CommonDI.CommonSP,
+                    urlFormat,
+                    postStream: postStream,
+                    encoding: Encoding.UTF8,
+                    hasFormData: false,
+                    timeOut: timeOut,
+                    contentType: "application/json").ConfigureAwait(false);
+
+#if NET462
+                result.content_type = response?.Result?.ContentType;
+                using (var responseStream = response?.Result?.GetResponseStream())
+                {
+                    if (responseStream != null)
+                    {
+                        await responseStream.CopyToAsync(stream).ConfigureAwait(false);
+                    }
+                }
+#else
+                var httpContent = response?.Result?.Content;
+                result.content_type = httpContent?.Headers?.ContentType?.ToString();
+                if (httpContent != null)
+                {
+                    using (var responseStream = await httpContent.ReadAsStreamAsync().ConfigureAwait(false))
+                    {
+                        await responseStream.CopyToAsync(stream).ConfigureAwait(false);
+                    }
+                }
+#endif
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -968,6 +1115,24 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
             }, accessTokenOrAppId).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// 【异步方法】上传图文消息内的图片获取URL
+        /// </summary>
+        /// <param name="accessTokenOrAppId">AccessToken或AppId（推荐使用AppId，需要先注册）</param>
+        /// <param name="file"></param>
+        /// <param name="timeOut"></param>
+        /// <returns></returns>
+        public static async Task<UploadImgResult> UploadImgAsync(string accessTokenOrAppId, Stream fileStream, int timeOut = Config.TIME_OUT)
+        {
+            //接口文档参考：https://mp.weixin.qq.com/wiki?t=resource/res_main&id=mp1444738729
+            return await ApiHandlerWapper.TryCommonApiAsync(async accessToken =>
+            {
+                var url = string.Format(Config.ApiMpHost + "/cgi-bin/media/uploadimg?access_token={0}", accessToken.AsUrlData());
+                fileStream.Seek(0, SeekOrigin.Begin);
+                return await CO2NET.HttpUtility.Post.PostGetJsonAsync<UploadImgResult>(CommonDI.CommonSP, url, null, fileStream, timeOut: timeOut).ConfigureAwait(false);
+            }, accessTokenOrAppId).ConfigureAwait(false);
+        }
+
         #endregion
 
         #region AI开放接口
@@ -1046,3 +1211,4 @@ namespace Senparc.Weixin.MP.AdvancedAPIs
         #endregion
     }
 }
+

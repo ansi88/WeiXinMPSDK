@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：WeixinTrace.cs
     文件功能描述：跟踪日志相关
@@ -45,16 +45,19 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     修改标识：Senparc - 20181118
     修改描述：v16.5.0 使用 CO2NET v0.3.0 新的 SenparcTrace 记录方法
 
+    修改标识：Senparc - 20220807
+    修改描述：v6.15.5 添加 WeixinTrace.SendApiLog(string, Stream) 重写方法
+
+    修改标识：Senparc - 20260718
+    修改描述：v6.24.0 接入日志敏感信息脱敏与正文限长
+
 ----------------------------------------------------------------*/
 
-using System;
-using System.Diagnostics;
-using System.IO;
-using Senparc.Weixin.Cache;
-using Senparc.Weixin.Exceptions;
-using System.Threading;
-using Senparc.CO2NET.Trace;
 using Senparc.CO2NET.Extensions;
+using Senparc.CO2NET.Trace;
+using Senparc.Weixin.Exceptions;
+using System;
+using System.IO;
 
 namespace Senparc.Weixin
 {
@@ -77,7 +80,41 @@ namespace Senparc.Weixin
         /// <param name="param"></param>
         public static void Log(string messageFormat, params object[] param)
         {
-            SenparcTrace.Log(messageFormat.FormatWith(param));
+            SenparcTrace.Log(WeixinTraceRedactor.RedactAndTruncate(messageFormat.FormatWith(param)));
+        }
+
+        /// <summary>
+        /// API 请求日志（发送数据），统一脱敏 URL 与正文并限制正文长度。
+        /// </summary>
+        public static new void SendApiPostDataLog(string url, string postData)
+        {
+            SenparcTrace.SendApiPostDataLog(
+                WeixinTraceRedactor.Redact(url),
+                WeixinTraceRedactor.RedactAndTruncate(postData));
+        }
+
+        /// <summary>
+        /// API 请求日志（接收结果），统一脱敏 URL 与正文并限制正文长度。
+        /// </summary>
+        public static new void SendApiLog(string url, string responseData)
+        {
+            SenparcTrace.SendApiLog(
+                WeixinTraceRedactor.Redact(url),
+                WeixinTraceRedactor.RedactAndTruncate(responseData));
+        }
+
+        /// <summary>
+        /// API请求日志（接收结果）
+        /// </summary>
+        /// <param name="url"></param>
+        /// <param name="stream"></param>
+        public static void SendApiLog(string url, Stream stream)
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            using (var sr = new StreamReader(stream))
+            {
+                SendApiLog(url, sr.ReadToEnd());
+            }
         }
 
         #region WeixinException 相关日志
@@ -95,8 +132,8 @@ namespace Senparc.Weixin
             using (var traceItem = new SenparcTraceItem(SenparcTrace._logEndActon, "WeixinException"))
             {
                 traceItem.Log(ex.GetType().Name);
-                traceItem.Log("AccessTokenOrAppId：{0}", ex.AccessTokenOrAppId);
-                traceItem.Log("Message：{0}", ex.Message);
+                traceItem.Log("AccessTokenOrAppId：{0}", WeixinTraceRedactor.Redact(ex.AccessTokenOrAppId));
+                traceItem.Log("Message：{0}", WeixinTraceRedactor.RedactAndTruncate(ex.Message));
                 traceItem.Log("StackTrace：{0}", ex.StackTrace);
                 if (ex.InnerException != null)
                 {
@@ -131,8 +168,8 @@ namespace Senparc.Weixin
             using (var traceItem = new SenparcTraceItem(SenparcTrace._logEndActon, "ErrorJsonResultException"))
             {
                 traceItem.Log("ErrorJsonResultException");
-                traceItem.Log("AccessTokenOrAppId：{0}", ex.AccessTokenOrAppId ?? "null");
-                traceItem.Log("URL：{0}", ex.Url);
+                traceItem.Log("AccessTokenOrAppId：{0}", WeixinTraceRedactor.Redact(ex.AccessTokenOrAppId ?? "null"));
+                traceItem.Log("URL：{0}", WeixinTraceRedactor.Redact(ex.Url));
                 traceItem.Log("errcode：{0}", ex.JsonResult.errcode);
                 traceItem.Log("errmsg：{0}", ex.JsonResult.errmsg);
             }

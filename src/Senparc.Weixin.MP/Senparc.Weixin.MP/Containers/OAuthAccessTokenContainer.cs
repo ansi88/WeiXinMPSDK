@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,9 +19,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
-    文件名：OAuthContainer.cs
+    文件名：OAuthAccessTokenContainer.cs
     文件功能描述：用户OAuth容器，用于自动管理OAuth的AccessToken，如果过期会重新获取
 
 
@@ -65,6 +65,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20191014
     修改描述：v16.9.102 正式启用 OAuthAccessTokenContainer
+
+    修改标识：Senparc - 20260718
+    修改描述：v16.24.4 修复 OAuth 同步注册参数与锁内令牌二次检查
 
 ----------------------------------------------------------------*/
 
@@ -134,8 +137,8 @@ namespace Senparc.Weixin.MP.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         public static void Register(string appId, string appSecret, string code, string name = null)
         {
-            var task = RegisterAsync(appId, appSecret, name);
-            Task.WaitAll(new[] { task }, 10000);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(appId, appSecret, code, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -149,7 +152,7 @@ namespace Senparc.Weixin.MP.Containers
         public static async Task RegisterAsync(string appId, string appSecret, string code, string name = null)
         {
             var key = BuildKey(appId, code);
-            RegisterFuncCollection[key] = async () =>
+            SetRegistrationCallback(key, async () =>
             {
                 //using (FlushCache.CreateInstance())
                 //{
@@ -164,7 +167,7 @@ namespace Senparc.Weixin.MP.Containers
                 await UpdateAsync(key, bag, null).ConfigureAwait(false);
                 return bag;
                 //}
-            };
+            });
 
             await RegisterFuncCollection[key]().ConfigureAwait(false);
 
@@ -227,6 +230,7 @@ namespace Senparc.Weixin.MP.Containers
             var oAuthAccessTokenBag = TryGetItem(key);
             using (Cache.BeginCacheLock(LockResourceName, key))//同步锁
             {
+                oAuthAccessTokenBag = TryGetItem(key);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || oAuthAccessTokenBag.OAuthAccessTokenExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -296,6 +300,7 @@ namespace Senparc.Weixin.MP.Containers
             var oAuthAccessTokenBag = await TryGetItemAsync(key).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName, key).ConfigureAwait(false))//同步锁
             {
+                oAuthAccessTokenBag = await TryGetItemAsync(key).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewToken || oAuthAccessTokenBag.OAuthAccessTokenExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取

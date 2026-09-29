@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：WxCardApiTicketContainer.cs
     文件功能描述：WxCardApiTicketContainer
@@ -47,6 +47,9 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 
     修改标识：Senparc - 20190827
     修改描述：v16.7.16 解决卡券WxCardApiTicketContainer【异步方法】获取可用Ticket,type传值的问题
+
+    修改标识：Senparc - 20260718
+    修改描述：v16.24.4 修复同步注册竞态，并在分布式锁内重新读取卡券票据状态
 
 ----------------------------------------------------------------*/
 
@@ -103,12 +106,8 @@ namespace Senparc.Weixin.MP.Containers
         [Obsolete("请使用 RegisterAsync() 方法")]
         public static void Register(string appId, string appSecret, string name = null)
         {
-            var task = RegisterAsync(appId, appSecret, name);
-            Task.WaitAll(new[] { task }, 10000);
-            //Task.Factory.StartNew(() =>
-            //{
-            //    RegisterAsync(appId, appSecret, name).ConfigureAwait(false);
-            //}).ConfigureAwait(false);
+            //同步入口必须在返回前完成注册，否则紧接着读取容器时会出现未注册竞态。
+            RegisterAsync(appId, appSecret, name).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         #region WxCardApiTicket
@@ -156,6 +155,7 @@ namespace Senparc.Weixin.MP.Containers
             WxCardApiTicketBag wxCardApiTicketBag = TryGetItem(appId);
             using (Cache.BeginCacheLock(LockResourceName, appId))//同步锁
             {
+                wxCardApiTicketBag = TryGetItem(appId);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || wxCardApiTicketBag.WxCardApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取
@@ -186,7 +186,7 @@ namespace Senparc.Weixin.MP.Containers
         public static async Task RegisterAsync(string appId, string appSecret, string name = null)
         {
             //记录注册信息，RegisterFunc委托内的过程会在缓存丢失之后自动重试
-            RegisterFuncCollection[appId] = async () =>
+            SetRegistrationCallback(appId, async () =>
             {
                 //using(FlushCache.CreateInstance())
                 //{
@@ -201,7 +201,7 @@ namespace Senparc.Weixin.MP.Containers
                 await UpdateAsync(appId, bag, null).ConfigureAwait(false);
                 return bag;
                 //}
-            };
+            });
 
             await RegisterFuncCollection[appId]().ConfigureAwait(false);
 
@@ -261,6 +261,7 @@ namespace Senparc.Weixin.MP.Containers
             WxCardApiTicketBag wxCardApiTicketBag = await TryGetItemAsync(appId).ConfigureAwait(false);
             using (await Cache.BeginCacheLockAsync(LockResourceName, appId).ConfigureAwait(false))//同步锁
             {
+                wxCardApiTicketBag = await TryGetItemAsync(appId).ConfigureAwait(false);//获锁后重新读取并二次检查过期状态
                 if (getNewTicket || wxCardApiTicketBag.WxCardApiTicketExpireTime <= SystemTime.Now)
                 {
                     //已过期，重新获取

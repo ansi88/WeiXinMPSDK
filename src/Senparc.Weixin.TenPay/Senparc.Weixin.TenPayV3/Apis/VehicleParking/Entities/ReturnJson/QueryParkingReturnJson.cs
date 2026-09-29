@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：QueryParkingReturnJson.cs
     文件功能描述：查询订单返回Json类
@@ -518,6 +518,29 @@ namespace Senparc.Weixin.TenPayV3.Apis.VehicleParking
             /// </summary>
             public string currency { get; set; }
 
+        }
+
+        // 新名称作为源码兼容别名；历史名称用于保持已发布程序集签名。
+        public class QueryParkingPayer : Payer
+        {
+            public QueryParkingPayer() { }
+            public QueryParkingPayer(string openid, string sub_openid) : base(openid, sub_openid) { }
+        }
+
+        public class QueryParkingAmount : Amount
+        {
+            public QueryParkingAmount() { }
+            public QueryParkingAmount(int total, string currency, int payer_total, int discount_total)
+                : base(total, currency, payer_total, discount_total) { }
+        }
+
+        public class QueryParkingPromotionDetail : Promotion_Detail
+        {
+            public QueryParkingPromotionDetail() { }
+            public QueryParkingPromotionDetail(string coupon_id, string name, string scope, string type, string stock_id,
+                int amount, int wechatpay_contribute, int merchant_contribute, int other_contribute, string currency)
+                : base(coupon_id, name, scope, type, stock_id, amount, wechatpay_contribute,
+                      merchant_contribute, other_contribute, currency) { }
         }
 
 

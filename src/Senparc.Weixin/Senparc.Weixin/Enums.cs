@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：Enums.cs
     文件功能描述：枚举类型
@@ -96,6 +96,21 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
     修改标识：WangDrama - 20210630
     修改描述：v6.9.600 添加 ReturnCode.SenparcWeixinSDK配置错误 枚举
 
+    修改标识：mc7246 - 20220402
+    修改描述：v6.14.5 添加试用小程序接口及事件
+
+    修改标识：mc7246 - 20220710
+    修改描述：v6.15.2 更新 ReturnCode 枚举，添加“半屏小程序管理”代码
+
+    修改标识：Senparc - 20220731
+    修改描述：v6.15.4 更新 ReturnCode 枚举，OpenApi 中的错误代码
+
+    修改标识：Senparc - 20220731
+    修改描述：v6.15.8.2 更新 ReturnCode 枚举，添加 ModifyWxaServerDomain  中的错误代码
+
+    修改标识：Senparc - 20230905
+    修改描述：v6.16.5 完善“第三方服务商小程序备案”接口，添加 ReturnCode 枚举
+
 ----------------------------------------------------------------*/
 
 
@@ -126,23 +141,27 @@ namespace Senparc.Weixin
         /// <summary>
         /// 公众号
         /// </summary>
-        MP,
+        MP = 0,
         /// <summary>
         /// 开放平台
         /// </summary>
-        Open,
+        Open = 1,
         /// <summary>
         /// 小程序
         /// </summary>
-        WxOpen,
+        WxOpen = 2,
         /// <summary>
-        /// 企业号
+        /// 企业号（已淘汰）
         /// </summary>
-        QY,
+        QY = 3,
         /// <summary>
         /// 企业微信
         /// </summary>
-        Work
+        Work = 4,
+        /// <summary>
+        /// 微信支付 V3
+        /// </summary>
+        TenPayV3=5,
     }
 
     /// <summary>
@@ -353,6 +372,25 @@ namespace Senparc.Weixin
         名称命中微信号 = 53018,
         名称在保护期内 = 53019,
 
+        该微信用户创建试用小程序已经5个_达到上限 = 61071,
+        该微信号错误或者为不活跃低信用户_通常为微信小号_请更换为正常的微信号后重试 = 61072,
+        名称命中了关键字_像小程序_微信_腾讯等以及知名品牌关键字_请更换名字后重试 = 86011,
+        openid不合法 = 86012,
+        试用小程序名称长度错误_只支持4_30个字符_不包含的试用小程序这六个汉字的占用 = 86017,
+
+
+        无法找到资源 = 86328,
+        备案审核订单未处于可以撤回的状态 = 86330,
+        不存在可撤回的审核订单 = 86368,
+        申请小程序备案失败 = 86202,
+        系统错误_请稍后重试 = 86301,
+        输入信息与图片信息相差过大 = 86302,
+        无法获取号码归属地 = 86303,
+        证件有效期不满足要求 = 86308,
+        当前正在审核中_请勿重复提交 = 86324,
+        存在订单尚未完成_不允许再次提交 = 86358,
+        小程序未备案_不支持注销 = 86353,
+
         //订阅通知
         模版tid参数错误 = 200014,
         关键词列表kidList参数错误 = 200020,
@@ -397,6 +435,33 @@ namespace Senparc.Weixin
         本月加急额度不足_请提升提审质量以获取更多额度 = 89405,
 
         #endregion
+
+        //半屏小程序管理
+        半屏小程序系统错误 = 89408,
+        获取半屏小程序列表参数错误 = 89409,
+        添加半屏小程序appid参数错误 = 89410,
+        添加半屏小程序appid参数为空 = 89411,
+        添加半屏小程序申请理由不得超过30个字 = 89412,
+        该小程序被申请次数已达24h限制 = 89413,
+        每天仅允许申请50次半屏小程序 = 89414,
+        删除半屏小程序appid参数为空 = 89415,
+        取消半屏小程序授权appid参数为空 = 89416,
+        不支持添加个人主体小程序 = 89420,
+        删除数据未找到 = 89421,
+        删除状态异常 = 89422,
+        申请次数添加到达上限 = 89423,
+        申请添加已超时 = 89425,
+        申请添加状态异常 = 89426,
+        申请号和授权号相同 = 89427,
+        该小程序已申请_不允许重复添加 = 89428,
+        已到达同一小程序每日最多申请次数 = 89429,
+        该小程序已设置自动拒绝申请 = 89430,
+        不支持此类型小程序 = 89431,
+        不是小程序 = 89432,
+        修改半屏小程序方式flag参数错误 = 89417,
+        获取半屏小程序每日申请次数失败 = 89418,
+        授权次数到达上限 = 89424,
+        获取半屏小程序每日授权次数失败 = 89419,
         /// <summary>
         /// 小程序为“签名错误”。对应公众号： 87009, “errmsg” : “reply is not exists” //该回复不存在
         /// </summary>
@@ -985,6 +1050,17 @@ namespace Senparc.Weixin
         发票已被其他公众号锁定 = 72023,
         发票状态错误 = 72024,
         存在发票不属于该用户 = 72037,
+
+        #region OpenApi
+
+        cgi_path填错了 = 76021,
+        当前调用接口使用的token与api所属账号不符_详情可看注意事项的说明 = 76022,
+        rid不存在 = 76001,
+        rid为空或者格式错误 = 76002,
+        当前账号无权查询该rid_该rid属于其他账号调用所产生 = 76003,
+        rid过期_仅支持持续7天内的rid = 76004,
+        #endregion
+
         可信域名不匹配_或者可信域名没有IPC备案_后续将不能在该域名下正常使用jssdk_ = 80001,
         部门下的结点数超过限制 = 81001,
         部门最多15层 = 81002,
@@ -1422,6 +1498,26 @@ namespace Senparc.Weixin
         只支持下载普通文件不支持下载文件夹等其他非文件实体类型 = 640029,
         非法的output_file_format = 844001,
 
+        #region Open - modifyThirdpartyServerDomain（ModifyWxaServerDomain）
+        /// <summary>
+        /// 第三方平台未发布
+        /// </summary>
+        第三方平台未发布 = 61028,
+        /// <summary>
+        /// 该公众号的菜单设置了过多的域名外跳（最多跳转到 3 个域名的链接）
+        /// </summary>
+        domain_count_reach_limit = 65316,
+        /// <summary>
+        /// 每个月只可以修改50次，超次数了
+        /// </summary>
+        reach_max_domain_quota_limit = 45104,
+        /// <summary>
+        /// 
+        /// </summary>
+        invalid_action_name = 40052
+
+        #endregion
+
 #pragma warning restore CS1591 // 缺少对公共可见类型或成员的 XML 注释
     }
 
@@ -1450,7 +1546,7 @@ namespace Senparc.Weixin
     /// <summary>
     /// 用户信息中的性别（sex）
     /// </summary>
-    [Obsolete("请使用 Senparc.Weixin.Enums.WeixinSex 枚举。")]
+    [Obsolete("请使用 Senparc.Weixin.Enums.WeixinSex 枚举。", true)]
     public enum Sex
     {
 
@@ -1467,4 +1563,18 @@ namespace Senparc.Weixin
         女 = 2
 #pragma warning restore CS1591 // 缺少对公共可见类型或成员的 XML 注释
     }
+
+
+    /// <summary>
+    /// 支付请求签名算法类型
+    /// </summary>
+    public enum CertType
+    {
+        RSA,
+        SM,
+
+        PUBKEY_RSA,
+        PUBKEY_SM
+    }
 }
+

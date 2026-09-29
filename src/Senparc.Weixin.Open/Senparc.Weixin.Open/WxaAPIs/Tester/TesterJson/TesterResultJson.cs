@@ -1,6 +1,6 @@
 ﻿
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
 
     文件名：TesterResultJson.cs
     文件功能描述：成员管理接口返回类型
@@ -22,3 +22,4 @@ namespace Senparc.Weixin.Open.WxaAPIs.Tester
     {
     }
 }
+

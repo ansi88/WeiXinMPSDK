@@ -1,7 +1,7 @@
 ﻿#region Apache License Version 2.0
 /*----------------------------------------------------------------
 
-Copyright 2021 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
+Copyright 2026 Jeffrey Su & Suzhou Senparc Network Technology Co.,Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
 except in compliance with the License. You may obtain a copy of the License at
@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
   
     文件名：CloseCombineOrderRequestData.cs
     文件功能描述：合单关闭订单请求数据
@@ -43,6 +43,11 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
 {
     public class CloseCombineOrderRequestData
     {
+        /// <summary>
+        /// 无参构造函数
+        /// </summary>
+        public CloseCombineOrderRequestData() { }
+
         /// <summary>
         /// 含参构造函数
         /// </summary>
@@ -110,3 +115,4 @@ namespace Senparc.Weixin.TenPayV3.Apis.BasePay
         #endregion
     }
 }
+

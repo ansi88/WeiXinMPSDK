@@ -1,5 +1,5 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：JSSDKHelper.cs
     文件功能描述：JSSDK生成签名的方法等
@@ -16,14 +16,18 @@
     修改标识：Senparc - 20170522
     修改描述：v14.4.9 修改TenPayUtil.GetNoncestr()方法，将编码由GBK改为UTF8
 
+    修改标识：Senparc - 20230628
+    修改描述：v3.15.22 JSSDKHelper.GetNoncestr() 弃用 MD5 加密方法
 
 ----------------------------------------------------------------*/
 
 using Senparc.CO2NET.Helpers;
 using Senparc.Weixin.Helpers;
+using Senparc.Weixin.Work.Containers;
 using System;
 using System.Collections;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Senparc.Weixin.Work.Helpers
 {
@@ -35,7 +39,7 @@ namespace Senparc.Weixin.Work.Helpers
         /// <returns></returns>
         public static string GetNoncestr()
         {
-            return EncryptHelper.GetMD5(Guid.NewGuid().ToString(), "UTF-8");
+            return Guid.NewGuid().ToString().Replace("-", "");
         }
 
         /// <summary>
@@ -69,6 +73,23 @@ namespace Senparc.Weixin.Work.Helpers
             return EncryptHelper.GetSha1(sb.ToString()).ToLower();
         }
 
+        /// <summary>
+        /// 获取给 JsApi UI 使用的打包签名信息
+        /// </summary>
+        /// <param name="appId"></param>
+        /// <param name="prepayId"></param>
+        /// <returns></returns>
+        public static async Task<JsApiUiPackage> GetJsApiUiPackageAsync(string appId, string secret, string url, string jsApiTicket, bool isAgentConfig)
+        {
+            var nonceStr = GetNoncestr();
+            var timeStamp = GetTimestamp();
+            jsApiTicket ??= await JsApiTicketContainer.GetTicketAsync(appId, secret, isAgentConfig);
+            var sign = GetSignature(jsApiTicket, nonceStr, timeStamp, url);
+
+            JsApiUiPackage jsApiUiPackage = new(appId, timeStamp.ToString(), nonceStr, sign);
+            return jsApiUiPackage;
+        }
 
     }
 }
+

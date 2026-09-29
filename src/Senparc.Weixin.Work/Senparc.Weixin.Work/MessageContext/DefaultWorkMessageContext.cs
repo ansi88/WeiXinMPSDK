@@ -1,15 +1,15 @@
 ﻿/*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
-    
+    Copyright (C) 2026 Senparc
+
     文件名：DefaultWorkMessageContext.cs
     文件功能描述：企业微信上下文的默认实现
-    
-    
+
+
     创建标识：Senparc - 20190915
-    
+
     修改标识：OrchesAdam - 2019119
     修改描述：v3.7.104.2 添加“上报企业客户变更事件”
-    
+
     修改标识：OrchesAdam - 20200430
     修改描述：v3.7.502 添加企业内部开发外部联系人
 
@@ -18,6 +18,30 @@
 
     修改标识：WangDrama - 20210630
     修改描述：v3.9.600 添加 CHANGE_EXTERNAL_CHAT 对 ChangeType 的判断
+
+    修改标识：Senparc - 20210324
+    修改描述：v3.14.6 添加：审批申请状态变化回调通知： "SYS_APPROVAL_CHANGE"
+
+    修改标识：XiaoPoTian - 20231119
+    修改描述：v3.18.1 添加“企业客户标签变更事件回调通知”（CHANGE_EXTERNAL_Tag）
+
+    修改标识：IcedMango - 20240229
+    修改描述：添加: 企业微信会话存档-产生会话回调事件（MSGAUDIT_NOTIFY）
+
+    修改标识：LofyLiu - 20240315
+    修改描述：添加: 模板卡片回调事件
+
+    修改标识：Senparc - 20250218
+    修改描述：[2025-02-18] v3.25.5 修复“客户标签回调函数-重排事件报错”(Issue #3116）
+
+    修改标识：Senparc - 20251203
+    修改描述：添加: 微信客服消息与事件回调通知（KF_MSG_OR_EVENT）事件处理
+
+    修改标识：Senparc - 20260523
+    修改描述：补充更新日志，完善文件头修改记录
+
+    修改标识：Senparc - 20260726
+    修改描述：v3.32.1 补齐企业微信通讯录、安全、智能机器人、微信客服和获客助手接口；识别应用邮箱新邮件变更回调
 
 ----------------------------------------------------------------*/
 
@@ -118,6 +142,12 @@ namespace Senparc.Weixin.Work.MessageContexts
                         case "BATCH_JOB_RESULT"://异步任务完成事件推送(batch_job_result)
                             requestMessage = new RequestMessageEvent_Batch_Job_Result();
                             break;
+                        case "CHANGE_CHAIN"://上下游空间、分组或企业变更事件(change_chain)
+                            requestMessage = new RequestMessageEvent_Change_Chain();
+                            break;
+                        case "SECURITY"://安全管理事件
+                            requestMessage = new RequestMessageEvent_Security();
+                            break;
                         case "CHANGE_CONTACT"://通讯录更改推送(change_contact)
                             switch (doc.Root.Element("ChangeType").Value.ToUpper())
                             {
@@ -165,6 +195,9 @@ namespace Senparc.Weixin.Work.MessageContexts
                                 case "DEL_FOLLOW_USER":
                                     requestMessage = new RequestMessageEvent_Change_ExternalContact_Del_FollowUser();
                                     break;
+                                case "TRANSFER_FAIL":
+                                    requestMessage = new RequestMessageEvent_Change_ExternalContact_Transfer_Fail();
+                                    break;
                                 case "MSG_AUDIT_APPROVED":
                                     requestMessage = new RequestMessageEvent_Change_ExternalContact_MsgAudit();
                                     break;
@@ -180,7 +213,7 @@ namespace Senparc.Weixin.Work.MessageContexts
                                     requestMessage = new RequestMessageEvent_Change_External_Chat_Create();
                                     break;
                                 case "UPDATE":
-                                    requestMessage = new RequestMessageEvent_Change_External_Chat_Update(doc.Root.Element("UpdateDetail").Value);
+                                    requestMessage = new RequestMessageEvent_Change_External_Chat_Update(doc.Root.Element("MemChangeList"));
                                     break;
                                 case "DISMISS":
                                     requestMessage = new RequestMessageEvent_Change_External_Chat_Dismiss();
@@ -190,8 +223,105 @@ namespace Senparc.Weixin.Work.MessageContexts
                                     break;
                             }
                             break;
+                        case "CHANGE_EXTERNAL_TAG"://企业客户标签变更事件推送
+                            //创建标签时，此项为tag，创建标签组时，此项为tag_group
+                            //文档：https://developer.work.weixin.qq.com/document/path/92130#%E4%BC%81%E4%B8%9A%E5%AE%A2%E6%88%B7%E6%A0%87%E7%AD%BE%E5%88%9B%E5%BB%BA%E4%BA%8B%E4%BB%B6
+                            var tagType = doc.Root.Element("TagType")?.Value;
+                            switch (doc.Root.Element("ChangeType").Value.ToUpper())
+                            {
+                                case "CREATE":
+                                    requestMessage = new RequestMessageEvent_Change_External_Tag_Create(tagType);
+                                    break;
+                                case "UPDATE":
+                                    requestMessage = new RequestMessageEvent_Change_External_Tag_Update(tagType);
+                                    break;
+                                case "DELETE":
+                                    requestMessage = new RequestMessageEvent_Change_External_Tag_Delete(tagType);
+                                    break;
+                                case "SHUFFLE":
+                                    requestMessage = new RequestMessageEvent_Change_External_Tag_Shuffle();
+                                    break;
+                                default://其他意外类型（也可以选择抛出异常）
+                                    requestMessage = new RequestMessageEventBase();
+                                    break;
+                            }
+                            break;
                         case "LIVING_STATUS_CHANGE"://直播回调事件(living_status_change)
                             requestMessage = new RequestMessageEvent_Living_Status_Change_Base();
+                            break;
+                        case "SYS_APPROVAL_CHANGE":
+                            requestMessage = new RequestMessageEvent_SysApprovalChange();
+                            break;
+                        case "OPEN_APPROVAL_CHANGE":
+                            requestMessage = new RequestMessageEvent_OpenApprovalChange();
+                            break;
+                        // 企业微信会话存档-产生会话回调事件(msgaudit_notify)
+                        // 文档: https://developer.work.weixin.qq.com/document/path/95039
+                        case "MSGAUDIT_NOTIFY":
+                            requestMessage = new RequestMessageEvent_MsgAuditNotify();
+                            break;
+                        case "TEMPLATE_CARD_EVENT": // 模板卡片事件推送
+                            requestMessage = new RequestMessageEvent_TemplateCardEvent();
+                            break;
+                        case "TEMPLATE_CARD_MENU_EVENT": // 通用模板卡片右上角菜单事件
+                            requestMessage = new RequestMessageEvent_TemplateCardMenuEvent();
+                            break;
+                        case "KF_MSG_OR_EVENT": // 微信客服消息与事件回调通知
+                            requestMessage = new RequestMessageEvent_Kf_Msg_Or_Event();
+                            break;
+                        case "KF_ACCOUNT_AUTH_CHANGE": // 微信客服账号授权变更通知
+                            requestMessage = new RequestMessageEvent_Kf_Account_Auth_Change(doc.Root);
+                            break;
+                        case "CUSTOMER_ACQUISITION": // 获客助手事件通知
+                            requestMessage = new RequestMessageEvent_Customer_Acquisition();
+                            break;
+                        case "APP_EMAIL_CHANGE": // 应用邮箱新邮件变更事件
+                            requestMessage = new RequestMessageEvent_App_Email_Change();
+                            break;
+                        case "PUBLIC_EMAIL_CHANGE": // 公共邮箱接收邮件事件
+                            requestMessage = new RequestMessageEvent_Public_Email_Change();
+                            break;
+                        case "WEDRIVE_INSUFFICIENT_CAPACITY": // 微盘容量不足事件
+                            requestMessage = new RequestMessageEvent_WeDrive_Insufficient_Capacity();
+                            break;
+                        case "WEDRIVE_SPACE_CHANGE": // 微盘空间变更事件
+                            requestMessage = new RequestMessageEvent_WeDrive_Space_Change(doc.Root);
+                            break;
+                        case "WEDRIVE_FILE_CHANGE": // 微盘文件变更事件
+                            requestMessage = new RequestMessageEvent_WeDrive_File_Change(doc.Root);
+                            break;
+                        case "PROGRAM_NOTIFY": // 数据与智能专区程序通知应用事件
+                            requestMessage = new RequestMessageEvent_Program_Notify();
+                            break;
+                        case "CHANGE_SCHOOL_CONTACT": // 家校通讯录成员或部门变更事件
+                            requestMessage = new RequestMessageEvent_Change_School_Contact();
+                            break;
+                        case "BOOK_MEETING_ROOM": // 会议室预定事件
+                            requestMessage = new RequestMessageEvent_Book_Meeting_Room();
+                            break;
+                        case "CANCEL_MEETING_ROOM": // 会议室取消预定事件
+                            requestMessage = new RequestMessageEvent_Cancel_Meeting_Room();
+                            break;
+                        case "DELETE_CALENDAR": // 删除日历事件
+                            requestMessage = new RequestMessageEvent_Delete_Calendar();
+                            break;
+                        case "MODIFY_CALENDAR": // 修改日历事件
+                            requestMessage = new RequestMessageEvent_Modify_Calendar();
+                            break;
+                        case "MODIFY_SCHEDULE": // 修改日程事件
+                            requestMessage = new RequestMessageEvent_Modify_Schedule();
+                            break;
+                        case "DELETE_SCHEDULE": // 删除日程事件
+                            requestMessage = new RequestMessageEvent_Delete_Schedule();
+                            break;
+                        case "RESPOND_SCHEDULE": // 日程回执事件
+                            requestMessage = new RequestMessageEvent_Respond_Schedule();
+                            break;
+                        case "SUBMIT_VIP_ACCOUNT_APPROVAL": // 成员提交高级功能账号申请
+                            requestMessage = new RequestMessageEvent_Submit_Vip_Account_Approval();
+                            break;
+                        case "FINISH_VIP_ACCOUNT_APPROVAL": // 成员高级功能账号申请终止
+                            requestMessage = new RequestMessageEvent_Finish_Vip_Account_Approval();
                             break;
                         default://其他意外类型（也可以选择抛出异常）
                             requestMessage = new RequestMessageEventBase();

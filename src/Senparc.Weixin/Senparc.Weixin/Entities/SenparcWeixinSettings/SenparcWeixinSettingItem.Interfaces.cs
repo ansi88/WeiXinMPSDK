@@ -19,7 +19,7 @@ Detail: https://github.com/JeffreySu/WeiXinMPSDK/blob/master/license.md
 #endregion Apache License Version 2.0
 
 /*----------------------------------------------------------------
-    Copyright (C) 2021 Senparc
+    Copyright (C) 2026 Senparc
     
     文件名：SenparcWeixinSettingItem.Interfaces.cs
     文件功能描述：SenparcWeixinSettingItem 接口
@@ -223,12 +223,29 @@ namespace Senparc.Weixin.Entities
         /// </summary>
         string TenPayV3_APIv3Key { get; set; }
 
+        /// <summary>
+        /// 微信支付（V3）微信平台公钥（替换平台证书）
+        /// </summary>
+        string TenPayV3_TenPayPubKey { get; set; }
+        /// <summary>
+        /// 微信支付（V3）微信平台公钥ID（替换平台证书）
+        /// </summary>
+        string TenPayV3_TenPayPubKeyID { get; set; }
+        /// <summary>
+        /// 微信支付（V3）微信平台公钥 启动
+        /// </summary>
+        bool TenPayV3_TenPayPubKeyEnable { get; set; }
         #endregion
 
         /// <summary>
         /// 小程序微信支付WxOpenTenpayNotify
         /// </summary>
         string TenPayV3_WxOpenTenpayNotify { get; set; }
+
+        /// <summary>
+        /// 设置HTTP头Authrization的加密认证类型
+        /// </summary>
+        CertType? EncryptionType { get; set; }
     }
 
     /// <summary>
@@ -265,3 +282,4 @@ namespace Senparc.Weixin.Entities
     }
 
 }
+
